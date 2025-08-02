@@ -45,6 +45,22 @@
             height: 100%;
             width: 100%;
         }
+
+        .timer-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1001;
+            padding: 1rem;
+            text-align: center;
+            font-size: 200%;
+            font-weight: bold;
+            color: #333;
+        }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
@@ -55,6 +71,8 @@
             <div id="map"></div>
         </div>
     </div>
+    
+    <div id="timer-container" class="timer-container"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
@@ -71,12 +89,15 @@
             let currentRouteLayer = null;
             let pollingInterval = null;
             let destinationName = null;
+            let timerContainer = null;
 
             function init() {
                 map = L.map('map').setView([0, 0], 2);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
+
+                timerContainer = document.getElementById('timer-container');
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -155,7 +176,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [50, 50] }); // Increased padding to show full popup
+                    map.fitBounds(bounds, { padding: [50, 50] });
 
                     getRouteAndTravelTime();
                     startLocationPolling();
@@ -289,23 +310,24 @@
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
-                        if (destinationMarker) {
-                            destinationMarker.bindPopup(`<span style="font-size: 200%;"><b>${durationInMinutes} min</b></span>`).openPopup();
+                        // Update the new floating timer window instead of a popup
+                        if (timerContainer) {
+                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
                         
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [50, 50] }); // Padding to leave ~10% space
+                        map.fitBounds(bounds, { padding: [50, 50] });
 
                     } else {
-                         if (destinationMarker) {
-                            destinationMarker.bindPopup("Could not find a route.").openPopup();
+                         if (timerContainer) {
+                            timerContainer.innerHTML = "Could not find a route.";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
-                    if (destinationMarker) {
-                        destinationMarker.bindPopup(`Error: ${error.message}`).openPopup();
+                    if (timerContainer) {
+                        timerContainer.innerHTML = `Error: ${error.message}`;
                     }
                     clearInterval(pollingInterval);
                 }
