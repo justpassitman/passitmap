@@ -210,13 +210,8 @@
                     return;
                 }
                 
-                // Only proceed if a destination hasn't been set yet
-                if (currentDestination) {
-                    statusMessage.textContent = "A destination is already set. Please press 'Clear' to reset.";
-                    return;
-                }
-
                 statusMessage.textContent = `Finding initial route to ${destination}...`;
+                getRouteBtn.disabled = true;
 
                 try {
                     const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
@@ -231,6 +226,7 @@
                     
                     if (geocodeData.features.length === 0) {
                         statusMessage.textContent = "Destination not found. Please try a different location.";
+                        getRouteBtn.disabled = false;
                         return;
                     }
 
@@ -241,19 +237,22 @@
                         .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
                         .openPopup();
                     
-                    // Store the destination string
                     currentDestination = destination;
                     
-                    // Set the map view to show both markers
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
                     map.fitBounds(bounds, { padding: [50, 50] });
 
                     getRouteAndTravelTime();
-                    startLocationPolling(); // Start the polling once the destination is set
+                    startLocationPolling();
+                    
+                    // Hide "Get Route" and change "Clear" to "Reset"
+                    getRouteBtn.style.display = 'none';
+                    clearRouteBtn.textContent = 'Reset';
                     
                 } catch (error) {
                     statusMessage.textContent = `An error occurred: ${error.message}.`;
                     console.error("Error:", error);
+                    getRouteBtn.disabled = false;
                 }
             }
 
@@ -328,7 +327,7 @@
                         currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
-                        statusMessage.textContent = `Travel time: ${durationInMinutes} minutes`;
+                        statusMessage.textContent = `Remaining time: ${durationInMinutes} minutes`;
                     } else {
                         statusMessage.textContent = "Could not find a route.";
                     }
@@ -349,7 +348,12 @@
                 currentRouteLayer = null;
                 destinationMarker = null;
                 statusMessage.textContent = "Cleared. Please enter a new destination.";
-                // Also reset the map view to the starting location
+                
+                // Show "Get Route" and change "Reset" to "Clear"
+                getRouteBtn.style.display = 'flex';
+                getRouteBtn.disabled = false;
+                clearRouteBtn.textContent = 'Clear';
+
                 if (startLocation) {
                     map.setView(startLocation, 12);
                 }
