@@ -19,11 +19,11 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            /* Changed dimensions to be a quarter of the original size */
-            width: 100px;
-            height: 125px;
+            /* Multiplied dimensions by 1.5 */
+            width: 150px;
+            height: 188px;
             background-color: rgba(255, 255, 255, 0.5); /* Translucent background */
-            border-radius: 0.5rem; /* Adjusted border-radius for the smaller size */
+            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
@@ -52,16 +52,16 @@
         .timer-container {
             /* Changed to absolute positioning and moved inside the map container */
             position: absolute; 
-            bottom: 0.5rem; /* Adjusted padding for the smaller size */
-            right: 0.5rem; /* Adjusted padding for the smaller size */
+            bottom: 0.75rem; /* Adjusted padding for the larger size */
+            right: 0.75rem; /* Adjusted padding for the larger size */
             max-width: 90%; /* Responsive width */
             background-color: rgba(255, 255, 255, 0.7);
-            border-radius: 0.5rem; /* Adjusted border-radius for the smaller size */
+            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
-            padding: 0.5rem; /* Adjusted padding for the smaller size */
+            padding: 0.75rem; /* Adjusted padding for the larger size */
             text-align: center;
-            font-size: 100%; /* Reduced font size to fit the new dimensions */
+            font-size: 100%; /* Kept font size consistent for readability */
             font-weight: bold;
             color: #333;
         }
