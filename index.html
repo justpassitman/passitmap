@@ -85,7 +85,9 @@
     
     <script>
         (function() {
-            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc3MDExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
+            // New: Use the CORS proxy URL and your correct API key
+            const API_KEY = "YOUR_CORRECT_API_KEY_HERE"; // <<<--- REPLACE THIS with your actual, correct API key
+            const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; 
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
             const statusMessage = document.getElementById('status-message');
@@ -104,15 +106,12 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                // Check for destination in the URL on page load
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
                 
                 if (destination) {
-                    // Start the process automatically if a destination is provided
                     processDestination(destination);
                 } else {
-                    // Fallback for when no destination is in the URL
                     statusMessage.textContent = "No destination provided in the URL. Please add '?destination=...' to the URL.";
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -154,7 +153,6 @@
             async function processDestination(destination) {
                 statusMessage.textContent = `Finding route to ${destination}...`;
 
-                // Get user's current location first
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -167,8 +165,8 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    // Then geocode the destination
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
+                    // New: Use the CORS proxy for the geocode request
+                    const geocodeUrl = `${CORS_PROXY}https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
@@ -186,7 +184,7 @@
                     const destPoint = geocodeData.features[0].geometry.coordinates;
                     destinationLocation = [destPoint[1], destPoint[0]];
                     
-                    setStartMarker(); // Set the start marker based on the acquired location
+                    setStartMarker();
                     if (destinationMarker) map.removeLayer(destinationMarker);
                     destinationMarker = L.marker(destinationLocation).addTo(map)
                         .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
@@ -271,14 +269,15 @@
                 ];
 
                 try {
-                    const directionsUrl = 'https://api.openrouteservice.org/v2/directions/driving-car';
+                    // New: Use the CORS proxy for the directions request
+                    const directionsUrl = `${CORS_PROXY}https://api.openrouteservice.org/v2/directions/driving-car`;
                     const payload = { coordinates: orsCoords };
 
                     const response = await fetch(directionsUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': API_KEY 
+                            'Authorization': API_KEY // The API key must be correct here
                         },
                         body: JSON.stringify(payload)
                     });
