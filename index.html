@@ -99,8 +99,9 @@
 
             function init() {
                 map = L.map('map').setView([0, 0], 2);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                // Changed to a new tile layer for a different map background
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                 }).addTo(map);
 
                 timerContainer = document.getElementById('timer-container');
@@ -182,7 +183,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [10, 10] });
+                    map.fitBounds(bounds, { padding: [20, 20] });
 
                     getRouteAndTravelTime();
                     startLocationPolling();
@@ -322,7 +323,7 @@
                         }
                         
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [30, 30] });
+                        map.fitBounds(bounds, { padding: [20, 20] });
 
                     } else {
                          if (timerContainer) {
