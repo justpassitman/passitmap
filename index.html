@@ -117,8 +117,8 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
-                    startLocation = [37.5665, 126.9780];
-                    map.setView(startLocation, 12);
+                    // Default to a global view if no destination is provided
+                    map.setView([0, 0], 2);
                 }
             }
 
@@ -130,9 +130,9 @@
 
             function onLocationError(error) {
                 console.error("Geolocation error:", error);
-                startLocation = [37.5665, 126.9780];
-                setStartMarker();
-                map.setView(startLocation, 12);
+                // Fallback to a global view on error
+                startLocation = null;
+                map.setView([0, 0], 2);
             }
 
             function setStartMarker() {
@@ -164,18 +164,7 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    // 1. Try with the original, full address string
                     let foundDestination = await tryGeocode(destination);
-                    
-                    // 2. If the full address doesn't work, try a more focused simplification
-                    if (!foundDestination) {
-                        // Remove country name, city type, floor number, and country code
-                        const simplifiedDestination = destination.replace(/(대한민국|특별시|KR|2층)/g, '').trim();
-                        if (simplifiedDestination !== destination) {
-                            console.log("Attempting to geocode with simplified address:", simplifiedDestination);
-                            foundDestination = await tryGeocode(simplifiedDestination);
-                        }
-                    }
                     
                     if (!foundDestination) {
                         const defaultMessage = "🤯 Could not find the address. Try simplifying it.";
@@ -214,7 +203,8 @@
             
             async function tryGeocode(query) {
                 try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}&boundary.country=KOR`;
+                    // Removed boundary.country to allow for global search
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
