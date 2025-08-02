@@ -150,12 +150,6 @@
                         .bindPopup("Your current location");
                 }
             }
-            
-            // Helper function to check for Korean characters
-            function isKorean(text) {
-                const koreanRegex = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF]/;
-                return koreanRegex.test(text);
-            }
 
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
@@ -171,23 +165,12 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = await tryGeocode(destination);
-                    
-                    // If the first attempt fails and the address contains Korean characters, try a more specific approach
-                    if (!foundDestination && isKorean(destination)) {
-                        // Simplify the address by removing common Korean address parts
-                        const simplifiedDestination = destination
-                            .replace(/(대한민국|특별시|광역시|도|시|군|구|읍|면|동|리|가|번지|층|호)\s*/g, ' ')
-                            .replace(/(KR)\s*/g, ' ')
-                            .trim();
-                        
-                        console.log("Attempting to geocode with simplified Korean address:", simplifiedDestination);
-                        
-                        // Try again, this time with a country boundary for Korea
-                        foundDestination = await tryGeocode(simplifiedDestination, 'KOR');
+                    if (!foundDestination) {
+                        foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
                     if (!foundDestination) {
-                        const defaultMessage = "🤯 Could not find the address. Try simplifying it.";
+                        const defaultMessage = "try the building name 🤯";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
                         } else {
@@ -212,7 +195,7 @@
                     
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = "🤯 GPS out or simplify the address";
+                    let errorMessage = "🤯 GPS out or simplify the adress";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -221,13 +204,9 @@
                 }
             }
             
-            async function tryGeocode(query, country = null) {
+            async function tryGeocode(query) {
                 try {
-                    let geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
-                    if (country) {
-                        geocodeUrl += `&boundary.country=${country}`;
-                    }
-                    
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
@@ -373,14 +352,14 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                            timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
                     }
                     clearInterval(pollingInterval);
                 }
