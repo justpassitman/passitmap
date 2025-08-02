@@ -206,7 +206,8 @@
             
             async function tryGeocode(query) {
                 try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
+                    // Added a country boundary parameter to the API call to help with Korean addresses.
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}&boundary.country=KOR`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
