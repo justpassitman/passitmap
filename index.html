@@ -167,10 +167,10 @@
                     // 1. Try with the original, full address string
                     let foundDestination = await tryGeocode(destination);
                     
-                    // 2. If the full address doesn't work, try a simplified version
+                    // 2. If the full address doesn't work, try a more focused simplification
                     if (!foundDestination) {
-                        // Remove redundant parts like country and floor info that can confuse the geocoder
-                        const simplifiedDestination = destination.replace(/(대한민국|특별시|KR|2층|번지)/g, '').trim();
+                        // Remove country name, city type, floor number, and country code
+                        const simplifiedDestination = destination.replace(/(대한민국|특별시|KR|2층)/g, '').trim();
                         if (simplifiedDestination !== destination) {
                             console.log("Attempting to geocode with simplified address:", simplifiedDestination);
                             foundDestination = await tryGeocode(simplifiedDestination);
