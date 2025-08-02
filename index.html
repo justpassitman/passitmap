@@ -34,7 +34,7 @@
                     var destination = [48.8584, 2.2945];
 
                     // Fetch route from OpenRouteService
-                    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${userLng},${userLat}&end=2.2945,48.8584`)
+                    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=&start=${userLng},${userLat}&end=2.2945,48.8584`)
                         .then(response => response.json())
                         .then(data => {
                             if (data.features && data.features.length > 0) {
