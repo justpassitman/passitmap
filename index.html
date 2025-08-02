@@ -182,6 +182,352 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                    map.fitBounds(bounds, { padding: [30, 30] });
+
+                    getRouteAndTravelTime();
+                    startLocationPolling();
+                    
+                } catch (error) {
+                    console.error("Error:", error);
+                    let errorMessage = `An error occurred: ${error.message}.`;
+                    if (startMarker) {
+                        startMarker.bindPopup(errorMessage).openPopup();
+                    } else {
+                        L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
+                    }
+                }
+            }
+            
+            async function tryGeocode(query) {
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        return null;
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        return null;
+                    }
+                    
+                    return geocodeData;
+                } catch (error) {
+                    console.error("Geocoding failed:", error);
+                    return null;
+                }
+            }
+
+            function startLocationPolling() {
+                clearInterval(pollingInterval);
+                pollingInterval = setInterval(() => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                startLocation = [position.coords.latitude, position.coords.longitude];
+                                setStartMarker();
+                                if (destinationLocation) {
+                                    getRouteAndTravelTime();
+                                }
+                            },
+                            (error) => {
+                                console.error("Real-time geolocation error:", error);
+                                clearInterval(pollingInterval);
+                            },
+                            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                        );
+                    } else {
+                        clearInterval(pollingInterval);
+                    }
+                }, DESTINATION_POLL_INTERVAL);
+            }
+
+            function decodePolyline(encoded) {
+                let points = [];
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
+
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
+
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
+
+                    points.push([lat / 1e5, lng / 1e5]);
+                }
+                return points;
+            }
+
+            async function getRouteAndTravelTime() {
+                if (!startLocation || !destinationLocation) {
+                    return; 
+                }
+
+                const orsCoords = [
+                    [startLocation[1], startLocation[0]],
+                    [destinationLocation[1], destinationLocation[0]]
+                ];
+
+                try {
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/driving-car`;
+                    const payload = { coordinates: orsCoords };
+
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': API_KEY
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        throw new Error(`An error occurred: ${errorMessage}.`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
+                        const durationInSeconds = route.summary.duration;
+
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
+                        
+                        const durationInMinutes = Math.round(durationInSeconds / 60);
+                        
+                        // Update the new floating timer window instead of a popup
+                        if (timerContainer) {
+                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
+                        }
+                        
+                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                        map.fitBounds(bounds, { padding: [30, 30] });
+
+                    } else {
+                         if (timerContainer) {
+                            timerContainer.innerHTML = "Could not find a route.";
+                        }
+                    }
+
+                } catch (error) {
+                    console.error("Routing Error:", error);
+                    if (timerContainer) {
+                        timerContainer.innerHTML = `Error: ${error.message}`;
+                    }
+                    clearInterval(pollingInterval);
+                }
+            }
+            
+            window.addEventListener('load', init);
+        })();
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Delivery Widget</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: transparent; 
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        .widget-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 400px;
+            height: 500px;
+            background-color: rgba(255, 255, 255, 0.5); /* Translucent background */
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            
+            /* Add backdrop-filter for a blurred glass effect */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .map-container {
+            flex-grow: 1;
+            padding: 0;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+            position: relative; /* Add this to make .timer-container's position absolute relative to the map container */
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .timer-container {
+            /* Changed to absolute positioning and moved inside the map container */
+            position: absolute; 
+            bottom: 1rem; /* Adjust padding as needed */
+            right: 1rem; /* Adjust padding as needed */
+            max-width: 90%; /* Responsive width */
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1001;
+            padding: 1rem;
+            text-align: center;
+            font-size: 200%;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body class="bg-gray-100">
+
+    <div class="widget-container">
+        <!-- Map container takes up the entire space -->
+        <div class="map-container rounded-b-xl">
+            <div id="map"></div>
+             <!-- Floating timer window is now inside the map container -->
+            <div id="timer-container" class="timer-container"></div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS for the map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        (function() {
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
+            const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
+            
+            let map = null;
+            let startLocation = null;
+            let destinationLocation = null;
+            let startMarker = null;
+            let destinationMarker = null;
+            let currentRouteLayer = null;
+            let pollingInterval = null;
+            let destinationName = null;
+            let timerContainer = null;
+
+            function init() {
+                map = L.map('map').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+
+                timerContainer = document.getElementById('timer-container');
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const destination = urlParams.get('destination');
+                
+                if (destination) {
+                    processDestination(destination);
+                } else {
+                    startLocation = [37.5665, 126.9780];
+                    map.setView(startLocation, 12);
+                }
+            }
+
+            function onLocationSuccess(position) {
+                startLocation = [position.coords.latitude, position.coords.longitude];
+                setStartMarker();
+                map.setView(startLocation, 12);
+            }
+
+            function onLocationError(error) {
+                console.error("Geolocation error:", error);
+                startLocation = [37.5665, 126.9780];
+                setStartMarker();
+                map.setView(startLocation, 12);
+            }
+
+            function setStartMarker() {
+                 const duckIcon = L.icon({
+                    iconUrl: 'duck.png',
+                    iconSize: [38, 38],
+                    iconAnchor: [19, 38],
+                    popupAnchor: [0, -38]
+                });
+                
+                if (startMarker) {
+                    startMarker.setLatLng(startLocation);
+                } else {
+                    startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
+                        .bindPopup("Your current location");
+                }
+            }
+
+            async function processDestination(destination) {
+                const getUserLocation = () => new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    } else {
+                        reject(new Error("Geolocation not supported."));
+                    }
+                });
+
+                try {
+                    const position = await getUserLocation();
+                    startLocation = [position.coords.latitude, position.coords.longitude];
+
+                    let foundDestination = await tryGeocode(destination);
+                    if (!foundDestination) {
+                        foundDestination = await tryGeocode(destination + ", Seoul");
+                    }
+                    
+                    if (!foundDestination) {
+                        const defaultMessage = "Destination not found. Please check the URL.";
+                        if (startMarker) {
+                             startMarker.bindPopup(defaultMessage).openPopup();
+                        } else {
+                             L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
+                        }
+                        return;
+                    }
+
+                    const destPoint = foundDestination.features[0].geometry.coordinates;
+                    destinationLocation = [destPoint[1], destPoint[0]];
+                    destinationName = foundDestination.features[0].properties.label;
+                    
+                    setStartMarker();
+                    if (destinationMarker) map.removeLayer(destinationMarker);
+                    destinationMarker = L.marker(destinationLocation).addTo(map);
+                    
+                    const bounds = L.latLngBounds([startLocation, destinationLocation]);
                     map.fitBounds(bounds, { padding: [50, 50] });
 
                     getRouteAndTravelTime();
