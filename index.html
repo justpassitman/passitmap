@@ -123,7 +123,6 @@
             let destinationMarker = null;
             let currentRouteLayer = null;
             let pollingInterval = null;
-            let currentDestination = null; // Store the current destination to avoid re-geocoding
 
             function init() {
                 map = L.map('map').setView([0, 0], 2);
@@ -143,6 +142,16 @@
                 
                 getRouteBtn.addEventListener('click', onGetRouteClick);
                 clearRouteBtn.addEventListener('click', clearAll);
+
+                // New: Check for destination in the URL on page load
+                const urlPath = window.location.pathname;
+                const pathSegments = urlPath.split('/').filter(Boolean); // Split by '/' and remove empty strings
+                const lastSegment = pathSegments.length > 0 ? decodeURIComponent(pathSegments[pathSegments.length - 1]) : '';
+                
+                if (lastSegment && !lastSegment.includes('.html')) {
+                    destinationInput.value = lastSegment;
+                    onGetRouteClick(); // Automatically start tracking
+                }
             }
 
             function onLocationSuccess(position) {
@@ -178,14 +187,14 @@
             }
 
             function startLocationPolling() {
-                clearInterval(pollingInterval); // Clear any existing interval
+                clearInterval(pollingInterval);
                 pollingInterval = setInterval(() => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             (position) => {
                                 startLocation = [position.coords.latitude, position.coords.longitude];
                                 setStartMarker();
-                                if (currentDestination) {
+                                if (destinationLocation) { // Use destinationLocation to check if a destination is set
                                     getRouteAndTravelTime();
                                 }
                             },
@@ -233,11 +242,10 @@
                     const destPoint = geocodeData.features[0].geometry.coordinates;
                     destinationLocation = [destPoint[1], destPoint[0]];
                     
+                    if (destinationMarker) map.removeLayer(destinationMarker);
                     destinationMarker = L.marker(destinationLocation).addTo(map)
                         .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
                         .openPopup();
-                    
-                    currentDestination = destination;
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
                     map.fitBounds(bounds, { padding: [50, 50] });
@@ -245,7 +253,6 @@
                     getRouteAndTravelTime();
                     startLocationPolling();
                     
-                    // Hide "Get Route" and change "Clear" to "Reset"
                     getRouteBtn.style.display = 'none';
                     clearRouteBtn.textContent = 'Reset';
                     
@@ -342,14 +349,13 @@
             function clearAll() {
                 clearInterval(pollingInterval);
                 destinationInput.value = "";
-                currentDestination = null;
+                destinationLocation = null;
                 if (currentRouteLayer) map.removeLayer(currentRouteLayer);
                 if (destinationMarker) map.removeLayer(destinationMarker);
                 currentRouteLayer = null;
                 destinationMarker = null;
                 statusMessage.textContent = "Cleared. Please enter a new destination.";
                 
-                // Show "Get Route" and change "Reset" to "Clear"
                 getRouteBtn.style.display = 'flex';
                 getRouteBtn.disabled = false;
                 clearRouteBtn.textContent = 'Clear';
