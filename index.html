@@ -1,60 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Map with Route</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 500px; width: 100%; }
-        body { margin: 0; padding: 0; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // Initialize the map
-        var map = L.map('map').setView([51.505, -0.09], 13); // Default view (London)
+function showMapAndRoute(destination) {
+    // Initialize map if not already created
+    if (!map) {
+        map = L.map('map').setView([51.505, -0.09], 13); // Default view
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         }).addTo(map);
+        mapContainer.style.display = 'block'; // Show map
+    }
 
-        // Get user's location
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    var userLat = position.coords.latitude;
-                    var userLng = position.coords.longitude;
-                    var userPos = [userLat, userLng];
-                    L.marker(userPos).addTo(map).bindPopup("Your Location").openPopup();
-                    map.setView(userPos, 13);
+    // Get user's location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const userLat = position.coords.latitude;
+                const userLng = position.coords.longitude;
+                const userPos = [userLat, userLng];
+                L.marker(userPos).addTo(map).bindPopup('Your Location').openPopup();
+                map.setView(userPos, 13);
 
-                    // Define destination (e.g., Eiffel Tower, Paris)
-                    var destination = [48.8584, 2.2945];
+                // Fetch route from OpenRouteService
+                fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${userLng},${userLat}&end=${destination[0]},${destination[1]}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.features && data.features.length > 0) {
+                            const route = data.features[0].geometry.coordinates;
+                            const latLngs = route.map(coord => [coord[1], coord[0]]);
+                            L.polyline(latLngs, { color: 'blue' }).addTo(map);
+                            map.fitBounds(L.polyline(latLngs).getBounds());
+                            L.marker([destination[1], destination[0]]).addTo(map).bindPopup('Destination').openPopup();
+                        } else {
+                            errorMessage.textContent = 'No route found to this destination.';
+                            errorMessage.style.display = 'block';
+                        }
+                    })
+                    .catch(error => {
+                        errorMessage.textContent = 'Error fetching route. Please try again.';
+                        errorMessage.style.display = 'block';
+                        console.error('Routing error:', error);
+                    });
+            },
+            error => {
+                console.error('Geolocation error:', error.message, 'Code:', error.code);
+                errorMessage.textContent = `Unable to retrieve your location: ${error.message}. Using default location.`;
+                errorMessage.style.display = 'block';
+                // Use default location (London)
+                const defaultPos = [51.505, -0.09];
+                L.marker(defaultPos).addTo(map).bindPopup('Default Location (London)').openPopup();
+                map.setView(defaultPos, 13);
 
-                    // Fetch route from OpenRouteService
-                    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${userLng},${userLat}&end=2.2945,48.8584`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.features && data.features.length > 0) {
-                                var route = data.features[0].geometry.coordinates;
-                                var latLngs = route.map(coord => [coord[1], coord[0]]);
-                                L.polyline(latLngs, {color: 'blue'}).addTo(map);
-                                map.fitBounds(L.polyline(latLngs).getBounds());
-                            } else {
-                                console.error('No route found');
-                            }
-                        })
-                        .catch(error => console.error('Error fetching route:', error));
-                },
-                function(error) {
-                    alert("Unable to retrieve your location. Using default location.");
-                }
-            );
-        } else {
-            alert("Geolocation is not supported by this browser.");
-        }
-    </script>
-</body>
-</html>
+                // Fetch route from default location
+                fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=-0.09,51.505&end=${destination[0]},${destination[1]}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.features && data.features.length > 0) {
+                            const route = data.features[0].geometry.coordinates;
+                            const latLngs = route.map(coord => [coord[1], coord[0]]);
+                            L.polyline(latLngs, { color: 'blue' }).addTo(map);
+                            map.fitBounds(L.polyline(latLngs).getBounds());
+                            L.marker([destination[1], destination[0]]).addTo(map).bindPopup('Destination').openPopup();
+                        } else {
+                            errorMessage.textContent = 'No route found to this destination.';
+                            errorMessage.style.display = 'block';
+                        }
+                    })
+                    .catch(error => {
+                        errorMessage.textContent = 'Error fetching route. Please try again.';
+                        errorMessage.style.display = 'block';
+                        console.error('Routing error:', error);
+                    });
+            }
+        );
+    } else {
+        errorMessage.textContent = 'Geolocation is not supported by this browser.';
+        errorMessage.style.display = 'block';
+    }
+}
