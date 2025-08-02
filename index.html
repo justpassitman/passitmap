@@ -72,6 +72,7 @@
             let destinationMarker = null;
             let currentRouteLayer = null;
             let pollingInterval = null;
+            let destinationName = null;
 
             function init() {
                 map = L.map('map').setView([0, 0], 2);
@@ -157,6 +158,7 @@
 
                     const destPoint = geocodeData.features[0].geometry.coordinates;
                     destinationLocation = [destPoint[1], destPoint[0]];
+                    destinationName = geocodeData.features[0].properties.label; // Store the destination name
                     
                     setStartMarker();
                     if (destinationMarker) map.removeLayer(destinationMarker);
@@ -276,10 +278,15 @@
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
-                        // Update the destination marker's popup with the new time
+                        // Update the destination marker's popup with only the bold time
                         if (destinationMarker) {
-                            destinationMarker.bindPopup(`Remaining time: ${durationInMinutes} minutes`).openPopup();
+                            destinationMarker.bindPopup(`<b>${durationInMinutes} minutes</b>`).openPopup();
                         }
+                        
+                        // Recenter and refit the map to show both the start and end points
+                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                        map.fitBounds(bounds, { padding: [50, 50] });
+
                     } else {
                          if (destinationMarker) {
                             destinationMarker.bindPopup("Could not find a route.").openPopup();
