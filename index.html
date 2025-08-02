@@ -159,9 +159,8 @@
                     if (destinationMarker) map.removeLayer(destinationMarker);
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
-                    // Higher padding value to zoom in more
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [100, 100] });
+                    map.fitBounds(bounds, { padding: [10, 10] });
 
                     getRouteAndTravelTime();
                     startLocationPolling();
@@ -274,12 +273,11 @@
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
                         if (destinationMarker) {
-                            destinationMarker.bindPopup(`<b>${durationInMinutes} minutes</b>`).openPopup();
+                            destinationMarker.bindPopup(`<span style="font-size: 200%;"><b>${durationInMinutes} minutes</b></span>`).openPopup();
                         }
                         
-                        // Higher padding value to zoom in more
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [100, 100] });
+                        map.fitBounds(bounds, { padding: [10, 10] });
 
                     } else {
                          if (destinationMarker) {
