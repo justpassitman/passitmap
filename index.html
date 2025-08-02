@@ -195,7 +195,7 @@
                     
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = `An error occurred: ${error.message}.`;
+                    let errorMessage = "🤯 ok use just the street";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -293,7 +293,7 @@
                 // Check if the user is within 350 meters of the destination
                 if (distance < 350) {
                     if (timerContainer) {
-                        timerContainer.innerHTML = "<b>Almost there ! 🥳</b>";
+                        timerContainer.innerHTML = "<b>Almost! 🥳</b>";
                     }
                     if (currentRouteLayer) {
                         map.removeLayer(currentRouteLayer);
@@ -352,14 +352,14 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "Could not find a route.";
+                            timerContainer.innerHTML = "🤯 ok use just the street";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = `Error: ${error.message}`;
+                        timerContainer.innerHTML = "🤯 ok use just the street";
                     }
                     clearInterval(pollingInterval);
                 }
