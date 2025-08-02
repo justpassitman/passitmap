@@ -133,7 +133,6 @@
 
                     let foundDestination = await tryGeocode(destination);
                     if (!foundDestination) {
-                        // If the first attempt fails, try again with ", Seoul"
                         foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
@@ -156,7 +155,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [10, 10] });
+                    map.fitBounds(bounds, { padding: [200, 200] }); // Increased padding to show full popup
 
                     getRouteAndTravelTime();
                     startLocationPolling();
@@ -291,11 +290,11 @@
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
                         if (destinationMarker) {
-                            destinationMarker.bindPopup(`<span style="font-size: 200%;"><b>${durationInMinutes} minutes</b></span>`).openPopup();
+                            destinationMarker.bindPopup(`<span style="font-size: 200%;"><b>${durationInMinutes} min</b></span>`).openPopup();
                         }
                         
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [10, 10] });
+                        map.fitBounds(bounds, { padding: [200, 200] }); // Increased padding for full popup view
 
                     } else {
                          if (destinationMarker) {
