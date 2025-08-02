@@ -62,7 +62,7 @@
         // Self-contained, anonymous function to prevent global scope pollution
         (function() {
             // The API key provided by the user.
-            const API_KEY = API_KEY;
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
             
             // DOM Elements
             const destinationInput = document.getElementById('destination');
@@ -87,7 +87,7 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                // Try to get the user's live location
+                // Try to get the user's live location with a 10-second timeout
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         onLocationSuccess,
