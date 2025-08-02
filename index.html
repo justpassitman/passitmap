@@ -123,6 +123,7 @@
             let destinationMarker = null;
             let currentRouteLayer = null;
             let pollingInterval = null;
+            let currentDestination = null; // Store the current destination to avoid re-geocoding
 
             function init() {
                 map = L.map('map').setView([0, 0], 2);
@@ -130,7 +131,6 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                // Use a single initial position request to set up the map
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         onLocationSuccess,
@@ -154,10 +154,10 @@
 
             function onLocationError(error) {
                 console.error("Geolocation error:", error);
-                startLocation = [48.808, 2.434]; // Default location: Alfortville, France
+                startLocation = [37.5665, 126.9780]; // Default location: Seoul, South Korea
                 setStartMarker();
                 map.setView(startLocation, 12);
-                statusMessage.textContent = "Could not get your location. Using a default starting point.";
+                statusMessage.textContent = "Could not get your location. Using Seoul, South Korea as a default.";
             }
 
             function setStartMarker() {
@@ -172,34 +172,33 @@
                     startMarker.setLatLng(startLocation);
                 } else {
                     startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
-                        .bindPopup("Your start location (or a default location)");
+                        .bindPopup("Your current location");
                 }
                 startMarker.openPopup();
             }
 
             function startLocationPolling() {
-                // Clear any existing polling interval to prevent multiple timers
-                clearInterval(pollingInterval);
+                clearInterval(pollingInterval); // Clear any existing interval
                 pollingInterval = setInterval(() => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             (position) => {
-                                // Update start location and marker position
                                 startLocation = [position.coords.latitude, position.coords.longitude];
                                 setStartMarker();
-                                // Re-run the routing function to get a new route and time
-                                getRouteAndTravelTime();
+                                if (currentDestination) {
+                                    getRouteAndTravelTime();
+                                }
                             },
                             (error) => {
                                 console.error("Real-time geolocation error:", error);
                                 statusMessage.textContent = "Error updating location. Route tracking paused.";
-                                clearInterval(pollingInterval); // Stop tracking on error
+                                clearInterval(pollingInterval);
                             },
                             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                         );
                     } else {
                         statusMessage.textContent = "Geolocation is not supported. Cannot track location.";
-                        clearInterval(pollingInterval); // Stop tracking if not supported
+                        clearInterval(pollingInterval);
                     }
                 }, DESTINATION_POLL_INTERVAL);
             }
@@ -211,8 +210,11 @@
                     return;
                 }
                 
-                if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                if (destinationMarker) map.removeLayer(destinationMarker);
+                // Only proceed if a destination hasn't been set yet
+                if (currentDestination) {
+                    statusMessage.textContent = "A destination is already set. Please press 'Clear' to reset.";
+                    return;
+                }
 
                 statusMessage.textContent = `Finding initial route to ${destination}...`;
 
@@ -239,6 +241,13 @@
                         .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
                         .openPopup();
                     
+                    // Store the destination string
+                    currentDestination = destination;
+                    
+                    // Set the map view to show both markers
+                    const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+
                     getRouteAndTravelTime();
                     startLocationPolling(); // Start the polling once the destination is set
                     
@@ -280,7 +289,7 @@
 
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
-                    return; // Don't try to get a route if we don't have both points
+                    return; 
                 }
 
                 const orsCoords = [
@@ -318,9 +327,6 @@
                         if (currentRouteLayer) map.removeLayer(currentRouteLayer);
                         currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
                         
-                        // We only want to adjust the view once on the initial route, not on every update
-                        // map.fitBounds(currentRouteLayer.getBounds());
-
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         statusMessage.textContent = `Travel time: ${durationInMinutes} minutes`;
                     } else {
@@ -330,18 +336,23 @@
                 } catch (error) {
                     console.error("Routing Error:", error);
                     statusMessage.textContent = `Error: ${error.message}`;
-                    clearInterval(pollingInterval); // Stop tracking on API error
+                    clearInterval(pollingInterval);
                 }
             }
 
             function clearAll() {
                 clearInterval(pollingInterval);
                 destinationInput.value = "";
+                currentDestination = null;
                 if (currentRouteLayer) map.removeLayer(currentRouteLayer);
                 if (destinationMarker) map.removeLayer(destinationMarker);
                 currentRouteLayer = null;
                 destinationMarker = null;
                 statusMessage.textContent = "Cleared. Please enter a new destination.";
+                // Also reset the map view to the starting location
+                if (startLocation) {
+                    map.setView(startLocation, 12);
+                }
             }
             
             window.addEventListener('load', init);
