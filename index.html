@@ -45,7 +45,7 @@
             }
 
             // Geocode destination address
-            fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(destAddress)}`)
+            fetch(`https://api.openrouteservice.org/geocode/search?api_key=eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=&text=${encodeURIComponent(destAddress)}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.features && data.features.length > 0) {
