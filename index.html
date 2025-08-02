@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duck Delivery Widget</title>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -39,6 +40,7 @@
             height: 100%;
             border-radius: 0;
             box-shadow: none;
+            position: relative; /* Add this to make .timer-container's position absolute relative to the map container */
         }
 
         #map {
@@ -47,10 +49,11 @@
         }
 
         .timer-container {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 400px;
+            /* Changed to absolute positioning and moved inside the map container */
+            position: absolute; 
+            bottom: 1rem; /* Adjust padding as needed */
+            right: 1rem; /* Adjust padding as needed */
+            max-width: 90%; /* Responsive width */
             background-color: rgba(255, 255, 255, 0.7);
             border-radius: 1rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -62,18 +65,21 @@
             color: #333;
         }
     </style>
+    <!-- Leaflet CSS for the map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body class="bg-gray-100">
 
     <div class="widget-container">
+        <!-- Map container takes up the entire space -->
         <div class="map-container rounded-b-xl">
             <div id="map"></div>
+             <!-- Floating timer window is now inside the map container -->
+            <div id="timer-container" class="timer-container"></div>
         </div>
     </div>
     
-    <div id="timer-container" class="timer-container"></div>
-
+    <!-- Leaflet JS for the map -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
