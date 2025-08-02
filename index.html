@@ -85,9 +85,8 @@
     
     <script>
         (function() {
-            // New: Use the CORS proxy URL and your correct API key
-            const API_KEY = "YeyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0="; // <<<--- REPLACE THIS with your actual, correct API key
-            const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; 
+            // New: Use the correct API key without the CORS proxy
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
             const statusMessage = document.getElementById('status-message');
