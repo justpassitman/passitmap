@@ -170,7 +170,7 @@
                     }
                     
                     if (!foundDestination) {
-                        const defaultMessage = "Destination not found. Please check the URL.";
+                        const defaultMessage = "try the building name 🤯";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
                         } else {
@@ -293,7 +293,7 @@
                 // Check if the user is within 350 meters of the destination
                 if (distance < 350) {
                     if (timerContainer) {
-                        timerContainer.innerHTML = "<b>almost there !</b>";
+                        timerContainer.innerHTML = "<b>Almost there ! 🥳</b>";
                     }
                     if (currentRouteLayer) {
                         map.removeLayer(currentRouteLayer);
