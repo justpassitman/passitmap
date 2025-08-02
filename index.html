@@ -1,126 +1,314 @@
-const startAddressInput = document.getElementById('start-address');
-const destAddressInput = document.getElementById('dest-address');
-const submitBtn = document.getElementById('submit-btn');
-const errorMessage = document.getElementById('error-message');
-const mapContainer = document.getElementById('map');
-let map = null;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Travel Map</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .main-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .map-container {
+            flex-grow: 1;
+            height: 60vh;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            overflow: hidden;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    <!-- Leaflet CSS for the map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body class="bg-gray-100">
 
-submitBtn.addEventListener('click', () => {
-    const destAddress = destAddressInput.value.trim();
-    const startAddress = startAddressInput.value.trim();
-    if (!destAddress) {
-        errorMessage.textContent = 'Please enter a destination address (e.g., Eiffel Tower, Paris, France).';
-        errorMessage.style.display = 'block';
-        return;
-    }
+    <div class="main-container max-w-4xl mx-auto">
+        <!-- Controls and status area -->
+        <div class="bg-white p-6 rounded-xl shadow-lg flex flex-col md:flex-row gap-4 items-center">
+            <h1 class="text-2xl font-bold text-indigo-600">Route Planner</h1>
+            <div class="flex-grow w-full">
+                <input type="text" id="destination" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter your destination (e.g., Paris, France)">
+            </div>
+            <button id="get-route-btn" class="w-full md:w-auto px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
+                Get Route
+            </button>
+            <button id="clear-route-btn" class="w-full md:w-auto px-6 py-2 bg-gray-400 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200">
+                Clear
+            </button>
+        </div>
 
-    // Geocode destination address
-    fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(destAddress)}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Geocoding response (destination):', data);
-            if (data.features && data.features.length > 0) {
-                const destination = data.features[0].geometry.coordinates;
-                errorMessage.style.display = 'none';
-                if (startAddress) {
-                    // Geocode start address
-                    fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(startAddress)}`)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            console.log('Geocoding response (start):', data);
-                            if (data.features && data.features.length > 0) {
-                                const start = data.features[0].geometry.coordinates;
-                                showMapAndRoute(start, destination);
-                            } else {
-                                errorMessage.textContent = 'Starting address not found. Try a more specific address (e.g., Big Ben, London, UK).';
-                                errorMessage.style.display = 'block';
-                            }
-                        })
-                        .catch(error => {
-                            errorMessage.textContent = 'Error fetching starting address: ' + error.message;
-                            errorMessage.style.display = 'block';
-                            console.error('Geocoding error (start):', error);
-                        });
+        <!-- Status message display -->
+        <div id="status-message" class="bg-white p-4 rounded-xl shadow-lg text-center text-sm font-medium text-gray-600">
+            Awaiting your location...
+        </div>
+        
+        <!-- Map container -->
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS for the map -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Self-contained, anonymous function to prevent global scope pollution
+        (function() {
+            // The API key provided by the user.
+            const API_KEY = API_KEY;
+            
+            // DOM Elements
+            const destinationInput = document.getElementById('destination');
+            const getRouteBtn = document.getElementById('get-route-btn');
+            const clearRouteBtn = document.getElementById('clear-route-btn');
+            const statusMessage = document.getElementById('status-message');
+
+            let map = null;
+            let startLocation = null;
+            let destinationLocation = null;
+            let startMarker = null;
+            let destinationMarker = null;
+            let currentRouteLayer = null;
+
+            /**
+             * Function to initialize the map and get the user's location.
+             */
+            function init() {
+                // Initialize the map with a default view until the user's location is known
+                map = L.map('map').setView([0, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+
+                // Try to get the user's current location
+                statusMessage.textContent = "Getting your current location...";
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
                 } else {
-                    getUserLocation(destination);
+                    onLocationError({ message: "Geolocation is not supported by this browser." });
                 }
-            } else {
-                errorMessage.textContent = 'Destination address not found. Try a more specific address (e.g., Eiffel Tower, Paris, France).';
-                errorMessage.style.display = 'block';
+
+                // Add event listeners
+                getRouteBtn.addEventListener('click', onGetRouteClick);
+                clearRouteBtn.addEventListener('click', clearAll);
             }
-        })
-        .catch(error => {
-            errorMessage.textContent = 'Error fetching destination address: ' + error.message;
-            errorMessage.style.display = 'block';
-            console.error('Geocoding error (destination):', error);
-        });
-});
 
-function getUserLocation(destination) {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                const userPos = [position.coords.longitude, position.coords.latitude];
-                showMapAndRoute(userPos, destination);
-            },
-            error => {
-                console.error('Geolocation error:', error.message, 'Code:', error.code);
-                errorMessage.textContent = `Unable to retrieve your location: ${error.message}. Please enter a starting address (e.g., Big Ben, London, UK).`;
-                errorMessage.style.display = 'block';
-            },
-            { timeout: 10000 }
-        );
-    } else {
-        errorMessage.textContent = 'Geolocation is not supported by this browser. Please enter a starting address (e.g., Big Ben, London, UK).';
-        errorMessage.style.display = 'block';
-    }
-}
+            /**
+             * Callback function for successful geolocation.
+             * @param {Object} position - The geolocation position object.
+             */
+            function onLocationSuccess(position) {
+                startLocation = [position.coords.latitude, position.coords.longitude];
 
-function showMapAndRoute(start, destination) {
-    if (!map) {
-        map = L.map('map').setView([start[1], start[0]], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
-        mapContainer.style.display = 'block';
-    }
-
-    L.marker([start[1], start[0]]).addTo(map).bindPopup('Start Location').openPopup();
-    L.marker([destination[1], destination[0]]).addTo(map).bindPopup('Destination').openPopup();
-
-    // Fetch route
-    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${start[0]},${start[1]}&end=${destination[0]},${destination[1]}`)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // Create a custom icon for the starting position using the uploaded image
+                const duckIcon = L.icon({
+                    iconUrl: 'duck.png',
+                    iconSize: [38, 38], // size of the icon
+                    iconAnchor: [19, 38], // point of the icon which will correspond to marker's location
+                    popupAnchor: [0, -38]  // point from which the popup should open relative to the iconAnchor
+                });
+                
+                // Add a marker for the start point using the custom duck icon
+                startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
+                    .bindPopup("Your current position")
+                    .openPopup();
+                
+                // Center the map on the user's location
+                map.setView(startLocation, 13);
+                statusMessage.textContent = "Location found. Please enter a destination.";
             }
-            return response.json();
-        })
-        .then(data => {
-            console.log('Routing response:', data);
-            if (data.features && data.features.length > 0) {
-                const route = data.features[0].geometry.coordinates;
-                const latLngs = route.map(coord => [coord[1], coord[0]]);
-                L.polyline(latLngs, { color: 'blue' }).addTo(map);
-                map.fitBounds(L.polyline(latLngs).getBounds());
-            } else {
-                errorMessage.textContent = 'No route found between these locations. Try closer locations or check API limits.';
-                errorMessage.style.display = 'block';
+
+            /**
+             * Callback function for geolocation errors.
+             * @param {Object} error - The geolocation error object.
+             */
+            function onLocationError(error) {
+                console.error("Geolocation Error:", error.message, ". Falling back to a default location.");
+                statusMessage.textContent = `Error: ${error.message}. Using a default starting location.`;
+                // Use a default location if geolocation fails
+                startLocation = [48.808, 2.434]; // Alfortville, France
+                // Remove the previous start marker if it exists before adding a new one
+                if (startMarker) {
+                    map.removeLayer(startMarker);
+                }
+                startMarker = L.marker(startLocation).addTo(map)
+                    .bindPopup("Default start location (Alfortville, France)")
+                    .openPopup();
+                map.setView(startLocation, 12);
             }
-        })
-        .catch(error => {
-            errorMessage.textContent = 'Error fetching route: ' + error.message;
-            errorMessage.style.display = 'block';
-            console.error('Routing error:', error);
-        });
-}
+
+            /**
+             * Handles the "Get Route" button click event.
+             */
+            async function onGetRouteClick() {
+                const destination = destinationInput.value.trim();
+                if (!destination) {
+                    statusMessage.textContent = "Please enter a destination.";
+                    return;
+                }
+                
+                // Clear any previous route and destination marker
+                if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                if (destinationMarker) map.removeLayer(destinationMarker);
+
+                statusMessage.textContent = `Finding route to ${destination}...`;
+
+                try {
+                    // First, geocode the destination string to get coordinates
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        const errorData = await geocodeResponse.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `Geocoding failed with status: ${geocodeResponse.status}`);
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        statusMessage.textContent = "Destination not found. Please try a different location.";
+                        return;
+                    }
+
+                    const destPoint = geocodeData.features[0].geometry.coordinates; // [lon, lat]
+                    destinationLocation = [destPoint[1], destPoint[0]]; // [lat, lon]
+                    
+                    // Add a marker for the destination
+                    destinationMarker = L.marker(destinationLocation).addTo(map)
+                        .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
+                        .openPopup();
+                    
+                    // Then, get the directions
+                    getRouteAndTravelTime();
+
+                } catch (error) {
+                    statusMessage.textContent = `An error occurred: ${error.message}.`;
+                    console.error("Error:", error);
+                }
+            }
+
+            /**
+             * Decodes an encoded polyline string into an array of latitude/longitude pairs.
+             * @param {string} encoded The encoded polyline string from the API response.
+             * @returns {Array<Array<number>>} An array of [lat, lon] coordinate pairs.
+             */
+            function decodePolyline(encoded) {
+                let points = [];
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
+
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
+
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
+
+                    points.push([lat / 1e5, lng / 1e5]);
+                }
+                return points;
+            }
+
+            /**
+             * Fetches the driving route from the OpenRouteService API and draws it on the map.
+             */
+            async function getRouteAndTravelTime() {
+                if (!startLocation || !destinationLocation) {
+                    statusMessage.textContent = "Missing start or destination coordinates.";
+                    return;
+                }
+
+                const orsCoords = [
+                    [startLocation[1], startLocation[0]],
+                    [destinationLocation[1], destinationLocation[0]]
+                ];
+
+                try {
+                    const directionsUrl = 'https://api.openrouteservice.org/v2/directions/driving-car';
+                    const payload = { coordinates: orsCoords };
+
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': API_KEY 
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        throw new Error(`An error occurred: ${errorMessage}. This is often caused by an invalid or expired API key.`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
+                        const durationInSeconds = route.summary.duration;
+
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
+                        map.fitBounds(currentRouteLayer.getBounds());
+
+                        const durationInMinutes = Math.round(durationInSeconds / 60);
+                        statusMessage.textContent = `Travel time: ${durationInMinutes} minutes`;
+                    } else {
+                        statusMessage.textContent = "Could not find a route.";
+                    }
+
+                } catch (error) {
+                    console.error("Routing Error:", error);
+                    statusMessage.textContent = `Error: ${error.message}`;
+                }
+            }
+
+            /**
+             * Clears the map and resets the state.
+             */
+            function clearAll() {
+                destinationInput.value = "";
+                if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                if (destinationMarker) map.removeLayer(destinationMarker);
+                currentRouteLayer = null;
+                destinationMarker = null;
+                statusMessage.textContent = "Cleared. Please enter a new destination.";
+            }
+            
+            // Add a window load listener to ensure the page is fully ready before we start
+            window.addEventListener('load', init);
+
+        })();
+    </script>
+</body>
+</html>
+
