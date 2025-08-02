@@ -182,7 +182,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [30, 30] });
+                    map.fitBounds(bounds, { padding: [10, 10] });
 
                     getRouteAndTravelTime();
                     startLocationPolling();
