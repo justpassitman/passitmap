@@ -131,17 +131,13 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
-                    
-                    if (!geocodeResponse.ok) {
-                        const errorData = await geocodeResponse.json().catch(() => ({}));
-                        throw new Error(errorData.error?.message || `Geocoding failed with status: ${geocodeResponse.status}`);
+                    let foundDestination = await tryGeocode(destination);
+                    if (!foundDestination) {
+                        // If the first attempt fails, try again with ", Seoul"
+                        foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
-                    const geocodeData = await geocodeResponse.json();
-                    
-                    if (geocodeData.features.length === 0) {
+                    if (!foundDestination) {
                         const defaultMessage = "Destination not found. Please check the URL.";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
@@ -151,9 +147,9 @@
                         return;
                     }
 
-                    const destPoint = geocodeData.features[0].geometry.coordinates;
+                    const destPoint = foundDestination.features[0].geometry.coordinates;
                     destinationLocation = [destPoint[1], destPoint[0]];
-                    destinationName = geocodeData.features[0].properties.label;
+                    destinationName = foundDestination.features[0].properties.label;
                     
                     setStartMarker();
                     if (destinationMarker) map.removeLayer(destinationMarker);
@@ -173,6 +169,28 @@
                     } else {
                         L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
                     }
+                }
+            }
+            
+            async function tryGeocode(query) {
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        return null;
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        return null;
+                    }
+                    
+                    return geocodeData;
+                } catch (error) {
+                    console.error("Geocoding failed:", error);
+                    return null;
                 }
             }
 
