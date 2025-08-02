@@ -19,10 +19,11 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 400px;
-            height: 500px;
+            /* Changed dimensions to be a quarter of the original size */
+            width: 100px;
+            height: 125px;
             background-color: rgba(255, 255, 255, 0.5); /* Translucent background */
-            border-radius: 1rem;
+            border-radius: 0.5rem; /* Adjusted border-radius for the smaller size */
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
@@ -51,16 +52,16 @@
         .timer-container {
             /* Changed to absolute positioning and moved inside the map container */
             position: absolute; 
-            bottom: 1rem; /* Adjust padding as needed */
-            right: 1rem; /* Adjust padding as needed */
+            bottom: 0.5rem; /* Adjusted padding for the smaller size */
+            right: 0.5rem; /* Adjusted padding for the smaller size */
             max-width: 90%; /* Responsive width */
             background-color: rgba(255, 255, 255, 0.7);
-            border-radius: 1rem;
+            border-radius: 0.5rem; /* Adjusted border-radius for the smaller size */
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
-            padding: 1rem;
+            padding: 0.5rem; /* Adjusted padding for the smaller size */
             text-align: center;
-            font-size: 200%;
+            font-size: 100%; /* Reduced font size to fit the new dimensions */
             font-weight: bold;
             color: #333;
         }
@@ -98,10 +99,14 @@
             let timerContainer = null;
 
             function init() {
-                map = L.map('map').setView([0, 0], 2);
-                // Changed to a new tile layer for a different map background
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                // Initializing the map with zoom and attribution controls disabled
+                map = L.map('map', {
+                    zoomControl: false,
+                    attributionControl: false
+                }).setView([0, 0], 2);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    subdomains: 'abcd'
                 }).addTo(map);
 
                 timerContainer = document.getElementById('timer-container');
@@ -183,7 +188,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [5, 5] });
+                    map.fitBounds(bounds, { padding: [20, 20] });
 
                     getRouteAndTravelTime();
                     startLocationPolling();
