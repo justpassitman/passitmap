@@ -85,6 +85,7 @@
     
     <script>
         (function() {
+            // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
             const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
@@ -166,6 +167,7 @@
 
                     let foundDestination = await tryGeocode(destination);
                     if (!foundDestination) {
+                        // Fallback for Korean addresses
                         foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
@@ -210,6 +212,11 @@
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
+                        // Check for a specific API key error
+                        if (geocodeResponse.status === 403) {
+                            console.error("Geocoding failed: Invalid API key.");
+                            throw new Error("Invalid API key. Please check your key or generate a new one.");
+                        }
                         return null;
                     }
                     
@@ -326,6 +333,10 @@
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
                         const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        // Add specific check for API key error here too
+                        if (response.status === 403) {
+                             throw new Error("Invalid API key. Please check your key or generate a new one.");
+                        }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
 
@@ -359,7 +370,7 @@
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address";
                     }
                     clearInterval(pollingInterval);
                 }
