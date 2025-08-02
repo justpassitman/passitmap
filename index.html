@@ -164,8 +164,18 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    // Geocoding only using the destination string provided by the user
+                    // 1. Try with the original, full address string
                     let foundDestination = await tryGeocode(destination);
+                    
+                    // 2. If the full address doesn't work, try a simplified version
+                    if (!foundDestination) {
+                        // Remove redundant parts like country and floor info that can confuse the geocoder
+                        const simplifiedDestination = destination.replace(/(대한민국|특별시|KR|2층|번지)/g, '').trim();
+                        if (simplifiedDestination !== destination) {
+                            console.log("Attempting to geocode with simplified address:", simplifiedDestination);
+                            foundDestination = await tryGeocode(simplifiedDestination);
+                        }
+                    }
                     
                     if (!foundDestination) {
                         const defaultMessage = "🤯 Could not find the address. Try simplifying it.";
@@ -193,7 +203,7 @@
                     
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = "🤯 GPS out or simplify the adress";
+                    let errorMessage = "🤯 GPS out or simplify the address";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -350,14 +360,14 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
+                            timerContainer.innerHTML = "🤯 GPS out or simplify the address";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
+                        timerContainer.innerHTML = "🤯 GPS out or simplify the address";
                     }
                     clearInterval(pollingInterval);
                 }
