@@ -164,13 +164,11 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
+                    // Geocoding only using the destination string provided by the user
                     let foundDestination = await tryGeocode(destination);
-                    if (!foundDestination) {
-                        foundDestination = await tryGeocode(destination + ", Seoul");
-                    }
                     
                     if (!foundDestination) {
-                        const defaultMessage = "try the building name 🤯";
+                        const defaultMessage = "🤯 Could not find the address. Try simplifying it.";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
                         } else {
@@ -206,7 +204,6 @@
             
             async function tryGeocode(query) {
                 try {
-                    // Added a country boundary parameter to the API call to help with Korean addresses.
                     const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}&boundary.country=KOR`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
