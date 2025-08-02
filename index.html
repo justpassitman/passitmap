@@ -195,7 +195,7 @@
                     
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = "🤯 ok use just the street";
+                    let errorMessage = "🤯 GPS out or simplify the adress";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -352,14 +352,14 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 ok use just the street";
+                            timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = "🤯 ok use just the street";
+                        timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
                     }
                     clearInterval(pollingInterval);
                 }
