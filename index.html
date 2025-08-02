@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Travel Map</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Duck Delivery</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -30,15 +29,13 @@
             width: 100%;
         }
     </style>
-    <!-- Leaflet CSS for the map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body class="bg-gray-100">
 
     <div class="main-container max-w-4xl mx-auto">
-        <!-- Controls and status area -->
         <div class="bg-white p-6 rounded-xl shadow-lg flex flex-col md:flex-row gap-4 items-center">
-            <h1 class="text-2xl font-bold text-indigo-600">Route Planner</h1>
+            <h1 class="text-2xl font-bold text-indigo-600">Duck Delivery</h1>
             <div class="flex-grow w-full">
                 <input type="text" id="destination" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Enter your destination (e.g., Paris, France)">
             </div>
@@ -50,18 +47,15 @@
             </button>
         </div>
 
-        <!-- Status message display -->
         <div id="status-message" class="bg-white p-4 rounded-xl shadow-lg text-center text-sm font-medium text-gray-600">
-            Awaiting your location...
+            Getting your current location...
         </div>
         
-        <!-- Map container -->
         <div class="map-container">
             <div id="map"></div>
         </div>
     </div>
 
-    <!-- Leaflet JS for the map -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
@@ -93,61 +87,63 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                // Try to get the user's current location
-                statusMessage.textContent = "Getting your current location...";
+                // Try to get the user's live location
                 if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError);
+                    navigator.geolocation.getCurrentPosition(
+                        onLocationSuccess,
+                        onLocationError,
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
                 } else {
-                    onLocationError({ message: "Geolocation is not supported by this browser." });
+                    onLocationError(); // Browser doesn't support geolocation
                 }
-
+                
                 // Add event listeners
                 getRouteBtn.addEventListener('click', onGetRouteClick);
                 clearRouteBtn.addEventListener('click', clearAll);
             }
 
             /**
-             * Callback function for successful geolocation.
-             * @param {Object} position - The geolocation position object.
+             * Handles successful retrieval of user's location.
+             * @param {Position} position The geolocation position object.
              */
             function onLocationSuccess(position) {
                 startLocation = [position.coords.latitude, position.coords.longitude];
-
-                // Create a custom icon for the starting position using the uploaded image
-                const duckIcon = L.icon({
-                    iconUrl: 'duck.png',
-                    iconSize: [38, 38], // size of the icon
-                    iconAnchor: [19, 38], // point of the icon which will correspond to marker's location
-                    popupAnchor: [0, -38]  // point from which the popup should open relative to the iconAnchor
-                });
-                
-                // Add a marker for the start point using the custom duck icon
-                startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
-                    .bindPopup("Your current position")
-                    .openPopup();
-                
-                // Center the map on the user's location
-                map.setView(startLocation, 13);
-                statusMessage.textContent = "Location found. Please enter a destination.";
+                setStartMarker();
+                map.setView(startLocation, 12);
+                statusMessage.textContent = "Your location has been set. Please enter a destination.";
             }
 
             /**
-             * Callback function for geolocation errors.
-             * @param {Object} error - The geolocation error object.
+             * Handles errors when retrieving user's location, and falls back to a default location.
+             * @param {GeolocationPositionError} [error] The geolocation error object.
              */
             function onLocationError(error) {
-                console.error("Geolocation Error:", error.message, ". Falling back to a default location.");
-                statusMessage.textContent = `Error: ${error.message}. Using a default starting location.`;
-                // Use a default location if geolocation fails
-                startLocation = [48.808, 2.434]; // Alfortville, France
-                // Remove the previous start marker if it exists before adding a new one
+                console.error("Geolocation error:", error);
+                startLocation = [48.808, 2.434]; // Default location: Alfortville, France
+                setStartMarker();
+                map.setView(startLocation, 12);
+                statusMessage.textContent = "Could not get your location. Using a default starting point.";
+            }
+
+            /**
+             * Creates and adds the duck marker to the map.
+             */
+            function setStartMarker() {
+                 const duckIcon = L.icon({
+                    iconUrl: 'duck.png',
+                    iconSize: [38, 38],
+                    iconAnchor: [19, 38],
+                    popupAnchor: [0, -38]
+                });
+                
                 if (startMarker) {
                     map.removeLayer(startMarker);
                 }
-                startMarker = L.marker(startLocation).addTo(map)
-                    .bindPopup("Default start location (Alfortville, France)")
+
+                startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
+                    .bindPopup("Your start location (or a default location)")
                     .openPopup();
-                map.setView(startLocation, 12);
             }
 
             /**
@@ -311,4 +307,3 @@
     </script>
 </body>
 </html>
-
