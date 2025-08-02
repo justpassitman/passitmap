@@ -195,7 +195,7 @@
                     
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = "🤯 GPS out or simplify the adress";
+                    let errorMessage = `An error occurred: ${error.message}.`;
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -352,14 +352,14 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
+                            timerContainer.innerHTML = "Could not find a route.";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = "🤯 GPS out or simplify the adress";
+                        timerContainer.innerHTML = `Error: ${error.message}`;
                     }
                     clearInterval(pollingInterval);
                 }
