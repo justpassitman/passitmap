@@ -1,141 +1,126 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Map with Route</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 500px; width: 100%; display: none; }
-        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-        #form-container { text-align: center; margin-bottom: 20px; }
-        #start-address, #dest-address { padding: 8px; width: 300px; margin-bottom: 10px; }
-        #submit-btn { padding: 8px 16px; }
-        #error-message { color: red; display: none; margin-top: 10px; }
-    </style>
-</head>
-<body>
-    <div id="form-container">
-        <div>
-            <input type="text" id="start-address" placeholder="Enter starting address (optional)">
-        </div>
-        <div>
-            <input type="text" id="dest-address" placeholder="Enter destination address (e.g., Eiffel Tower, Paris)">
-        </div>
-        <button id="submit-btn">Show Route</button>
-        <div id="error-message"></div>
-    </div>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const startAddressInput = document.getElementById('start-address');
-        const destAddressInput = document.getElementById('dest-address');
-        const submitBtn = document.getElementById('submit-btn');
-        const errorMessage = document.getElementById('error-message');
-        const mapContainer = document.getElementById('map');
-        let map = null;
+const startAddressInput = document.getElementById('start-address');
+const destAddressInput = document.getElementById('dest-address');
+const submitBtn = document.getElementById('submit-btn');
+const errorMessage = document.getElementById('error-message');
+const mapContainer = document.getElementById('map');
+let map = null;
 
-        submitBtn.addEventListener('click', () => {
-            const destAddress = destAddressInput.value.trim();
-            const startAddress = startAddressInput.value.trim();
-            if (!destAddress) {
-                errorMessage.textContent = 'Please enter a destination address.';
-                errorMessage.style.display = 'block';
-                return;
+submitBtn.addEventListener('click', () => {
+    const destAddress = destAddressInput.value.trim();
+    const startAddress = startAddressInput.value.trim();
+    if (!destAddress) {
+        errorMessage.textContent = 'Please enter a destination address (e.g., Eiffel Tower, Paris, France).';
+        errorMessage.style.display = 'block';
+        return;
+    }
+
+    // Geocode destination address
+    fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(destAddress)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-
-            // Geocode destination address
-            fetch(`https://api.openrouteservice.org/geocode/search?api_key=eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=&text=${encodeURIComponent(destAddress)}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.features && data.features.length > 0) {
-                        const destination = data.features[0].geometry.coordinates; // [lng, lat]
-                        errorMessage.style.display = 'none';
-                        if (startAddress) {
-                            // Geocode start address
-                            fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(startAddress)}`)
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.features && data.features.length > 0) {
-                                        const start = data.features[0].geometry.coordinates; // [lng, lat]
-                                        showMapAndRoute(start, destination);
-                                    } else {
-                                        errorMessage.textContent = 'Starting address not found. Try a more specific address.';
-                                        errorMessage.style.display = 'block';
-                                    }
-                                })
-                                .catch(error => {
-                                    errorMessage.textContent = 'Error fetching starting address. Please try again.';
-                                    errorMessage.style.display = 'block';
-                                    console.error('Geocoding error (start):', error);
-                                });
-                        } else {
-                            // Use geolocation
-                            getUserLocation(destination);
-                        }
-                    } else {
-                        errorMessage.textContent = 'Destination address not found. Try a more specific address.';
-                        errorMessage.style.display = 'block';
-                    }
-                })
-                .catch(error => {
-                    errorMessage.textContent = 'Error fetching destination address. Please try again.';
-                    errorMessage.style.display = 'block';
-                    console.error('Geocoding error (destination):', error);
-                });
-        });
-
-        function getUserLocation(destination) {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        const userPos = [position.coords.longitude, position.coords.latitude];
-                        showMapAndRoute(userPos, destination);
-                    },
-                    error => {
-                        console.error('Geolocation error:', error.message, 'Code:', error.code);
-                        errorMessage.textContent = `Unable to retrieve your location: ${error.message}. Please enter a starting address.`;
-                        errorMessage.style.display = 'block';
-                    }
-                );
+            return response.json();
+        })
+        .then(data => {
+            console.log('Geocoding response (destination):', data);
+            if (data.features && data.features.length > 0) {
+                const destination = data.features[0].geometry.coordinates;
+                errorMessage.style.display = 'none';
+                if (startAddress) {
+                    // Geocode start address
+                    fetch(`https://api.openrouteservice.org/geocode/search?api_key=API_KEY_PLACEHOLDER&text=${encodeURIComponent(startAddress)}`)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Geocoding response (start):', data);
+                            if (data.features && data.features.length > 0) {
+                                const start = data.features[0].geometry.coordinates;
+                                showMapAndRoute(start, destination);
+                            } else {
+                                errorMessage.textContent = 'Starting address not found. Try a more specific address (e.g., Big Ben, London, UK).';
+                                errorMessage.style.display = 'block';
+                            }
+                        })
+                        .catch(error => {
+                            errorMessage.textContent = 'Error fetching starting address: ' + error.message;
+                            errorMessage.style.display = 'block';
+                            console.error('Geocoding error (start):', error);
+                        });
+                } else {
+                    getUserLocation(destination);
+                }
             } else {
-                errorMessage.textContent = 'Geolocation is not supported by this browser. Please enter a starting address.';
+                errorMessage.textContent = 'Destination address not found. Try a more specific address (e.g., Eiffel Tower, Paris, France).';
                 errorMessage.style.display = 'block';
             }
-        }
+        })
+        .catch(error => {
+            errorMessage.textContent = 'Error fetching destination address: ' + error.message;
+            errorMessage.style.display = 'block';
+            console.error('Geocoding error (destination):', error);
+        });
+});
 
-        function showMapAndRoute(start, destination) {
-            if (!map) {
-                map = L.map('map').setView([start[1], start[0]], 13);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                }).addTo(map);
-                mapContainer.style.display = 'block';
+function getUserLocation(destination) {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                const userPos = [position.coords.longitude, position.coords.latitude];
+                showMapAndRoute(userPos, destination);
+            },
+            error => {
+                console.error('Geolocation error:', error.message, 'Code:', error.code);
+                errorMessage.textContent = `Unable to retrieve your location: ${error.message}. Please enter a starting address (e.g., Big Ben, London, UK).`;
+                errorMessage.style.display = 'block';
+            },
+            { timeout: 10000 }
+        );
+    } else {
+        errorMessage.textContent = 'Geolocation is not supported by this browser. Please enter a starting address (e.g., Big Ben, London, UK).';
+        errorMessage.style.display = 'block';
+    }
+}
+
+function showMapAndRoute(start, destination) {
+    if (!map) {
+        map = L.map('map').setView([start[1], start[0]], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+        mapContainer.style.display = 'block';
+    }
+
+    L.marker([start[1], start[0]]).addTo(map).bindPopup('Start Location').openPopup();
+    L.marker([destination[1], destination[0]]).addTo(map).bindPopup('Destination').openPopup();
+
+    // Fetch route
+    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${start[0]},${start[1]}&end=${destination[0]},${destination[1]}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-
-            L.marker([start[1], start[0]]).addTo(map).bindPopup('Start Location').openPopup();
-            L.marker([destination[1], destination[0]]).addTo(map).bindPopup('Destination').openPopup();
-
-            // Fetch route
-            fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${start[0]},${start[1]}&end=${destination[0]},${destination[1]}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.features && data.features.length > 0) {
-                        const route = data.features[0].geometry.coordinates;
-                        const latLngs = route.map(coord => [coord[1], coord[0]]);
-                        L.polyline(latLngs, { color: 'blue' }).addTo(map);
-                        map.fitBounds(L.polyline(latLngs).getBounds());
-                    } else {
-                        errorMessage.textContent = 'No route found between these locations.';
-                        errorMessage.style.display = 'block';
-                    }
-                })
-                .catch(error => {
-                    errorMessage.textContent = 'Error fetching route. Please try again.';
-                    errorMessage.style.display = 'block';
-                    console.error('Routing error:', error);
-                });
-        }
-    </script>
-</body>
-</html>
+            return response.json();
+        })
+        .then(data => {
+            console.log('Routing response:', data);
+            if (data.features && data.features.length > 0) {
+                const route = data.features[0].geometry.coordinates;
+                const latLngs = route.map(coord => [coord[1], coord[0]]);
+                L.polyline(latLngs, { color: 'blue' }).addTo(map);
+                map.fitBounds(L.polyline(latLngs).getBounds());
+            } else {
+                errorMessage.textContent = 'No route found between these locations. Try closer locations or check API limits.';
+                errorMessage.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            errorMessage.textContent = 'Error fetching route: ' + error.message;
+            errorMessage.style.display = 'block';
+            console.error('Routing error:', error);
+        });
+}
