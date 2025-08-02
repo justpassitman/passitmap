@@ -38,7 +38,7 @@
         .map-container {
             flex-grow: 1;
             padding: 0;
-            height: auto;
+            height: 100%; /* Make map fill the entire container */
             border-radius: 0;
             box-shadow: none;
         }
@@ -47,35 +47,12 @@
             height: 100%;
             width: 100%;
         }
-        
-        .title-h1 {
-            font-size: 1.25rem;
-        }
-        
-        .status-message-box {
-            font-size: 0.75rem;
-            padding: 0.5rem;
-        }
-
-        .header-section {
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body class="bg-gray-100">
 
     <div class="widget-container">
-        <div class="header-section bg-white p-4 rounded-t-xl">
-            <h1 class="title-h1 font-bold text-indigo-600">Duck Delivery</h1>
-            <div id="status-message" class="status-message-box bg-white text-center text-gray-600">
-                Getting your current location...
-            </div>
-        </div>
-        
         <div class="map-container rounded-b-xl">
             <div id="map"></div>
         </div>
@@ -85,12 +62,9 @@
     
     <script>
         (function() {
-            // New: Use the correct API key without the CORS proxy
             const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
-            const statusMessage = document.getElementById('status-message');
-
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
@@ -111,12 +85,9 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
-                    statusMessage.textContent = "No destination provided in the URL. Please add '?destination=...' to the URL.";
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-                    } else {
-                        onLocationError(); 
-                    }
+                    // Initialize the map to Seoul if no destination is provided
+                    startLocation = [37.5665, 126.9780];
+                    map.setView(startLocation, 12);
                 }
             }
 
@@ -150,8 +121,6 @@
             }
 
             async function processDestination(destination) {
-                statusMessage.textContent = `Finding route to ${destination}...`;
-
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -175,7 +144,14 @@
                     const geocodeData = await geocodeResponse.json();
                     
                     if (geocodeData.features.length === 0) {
-                        statusMessage.textContent = "Destination not found. Please try a different location.";
+                        // Handle the case where the destination is not found
+                        const defaultMessage = "Destination not found. Please check the URL.";
+                        if (startMarker) {
+                             startMarker.bindPopup(defaultMessage).openPopup();
+                        } else {
+                             // Fallback in case there's no location yet
+                             L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
+                        }
                         return;
                     }
 
@@ -184,9 +160,7 @@
                     
                     setStartMarker();
                     if (destinationMarker) map.removeLayer(destinationMarker);
-                    destinationMarker = L.marker(destinationLocation).addTo(map)
-                        .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
-                        .openPopup();
+                    destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
                     map.fitBounds(bounds, { padding: [50, 50] });
@@ -195,8 +169,14 @@
                     startLocationPolling();
                     
                 } catch (error) {
-                    statusMessage.textContent = `An error occurred: ${error.message}.`;
+                    // Handle the case where there is a network or API error
                     console.error("Error:", error);
+                    let errorMessage = `An error occurred: ${error.message}.`;
+                    if (startMarker) {
+                        startMarker.bindPopup(errorMessage).openPopup();
+                    } else {
+                        L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
+                    }
                 }
             }
 
@@ -214,13 +194,11 @@
                             },
                             (error) => {
                                 console.error("Real-time geolocation error:", error);
-                                statusMessage.textContent = "Error updating location. Route tracking paused.";
                                 clearInterval(pollingInterval);
                             },
                             { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                         );
                     } else {
-                        statusMessage.textContent = "Geolocation is not supported. Cannot track location.";
                         clearInterval(pollingInterval);
                     }
                 }, DESTINATION_POLL_INTERVAL);
@@ -297,14 +275,22 @@
                         currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
-                        statusMessage.textContent = `Remaining time: ${durationInMinutes} minutes`;
+                        
+                        // Update the destination marker's popup with the new time
+                        if (destinationMarker) {
+                            destinationMarker.bindPopup(`Remaining time: ${durationInMinutes} minutes`).openPopup();
+                        }
                     } else {
-                        statusMessage.textContent = "Could not find a route.";
+                         if (destinationMarker) {
+                            destinationMarker.bindPopup("Could not find a route.").openPopup();
+                        }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
-                    statusMessage.textContent = `Error: ${error.message}`;
+                    if (destinationMarker) {
+                        destinationMarker.bindPopup(`Error: ${error.message}`).openPopup();
+                    }
                     clearInterval(pollingInterval);
                 }
             }
