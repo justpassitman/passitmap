@@ -37,9 +37,8 @@
 
         .map-container {
             flex-grow: 1;
-            /* Adjust padding to fit within the widget container */
             padding: 0;
-            height: auto; /* Let it fill the remaining space */
+            height: auto;
             border-radius: 0;
             box-shadow: none;
         }
@@ -48,55 +47,33 @@
             height: 100%;
             width: 100%;
         }
+        
+        .title-h1 {
+            font-size: 1.25rem;
+        }
+        
+        .status-message-box {
+            font-size: 0.75rem;
+            padding: 0.5rem;
+        }
 
-        /* Adjust the input and button sizes for the smaller widget */
-        .controls-and-status {
+        .header-section {
             padding: 1rem;
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
         }
-
-        .controls-and-status input,
-        .controls-and-status button {
-            font-size: 0.875rem; /* Smaller font size */
-            padding: 0.5rem; /* Smaller padding */
-        }
-        
-        .title-h1 {
-            font-size: 1.25rem; /* Smaller title */
-        }
-        
-        .status-message-box {
-            font-size: 0.75rem; /* Smaller status text */
-            padding: 0.5rem;
-        }
-
     </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body class="bg-gray-100">
 
     <div class="widget-container">
-        <div class="controls-and-status bg-white p-4 rounded-t-xl">
-            <div class="flex items-center gap-2">
-                <h1 class="title-h1 font-bold text-indigo-600">Duck Delivery</h1>
-                <div class="flex-grow">
-                    <input type="text" id="destination" class="w-full px-2 py-1 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Destination">
-                </div>
+        <div class="header-section bg-white p-4 rounded-t-xl">
+            <h1 class="title-h1 font-bold text-indigo-600">Duck Delivery</h1>
+            <div id="status-message" class="status-message-box bg-white text-center text-gray-600">
+                Getting your current location...
             </div>
-            <div class="flex gap-2 mt-2">
-                <button id="get-route-btn" class="flex-grow px-4 py-1 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition-colors duration-200">
-                    Get Route
-                </button>
-                <button id="clear-route-btn" class="flex-grow px-4 py-1 bg-gray-400 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-500 transition-colors duration-200">
-                    Clear
-                </button>
-            </div>
-        </div>
-
-        <div id="status-message" class="status-message-box bg-white text-center text-gray-600">
-            Getting your current location...
         </div>
         
         <div class="map-container rounded-b-xl">
@@ -108,12 +85,9 @@
     
     <script>
         (function() {
-            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc3MDExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0=";
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
-            const destinationInput = document.getElementById('destination');
-            const getRouteBtn = document.getElementById('get-route-btn');
-            const clearRouteBtn = document.getElementById('clear-route-btn');
             const statusMessage = document.getElementById('status-message');
 
             let map = null;
@@ -130,27 +104,21 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        onLocationSuccess,
-                        onLocationError,
-                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                    );
+                // Check for destination in the URL on page load
+                const urlParams = new URLSearchParams(window.location.search);
+                const destination = urlParams.get('destination');
+                
+                if (destination) {
+                    // Start the process automatically if a destination is provided
+                    processDestination(destination);
                 } else {
-                    onLocationError(); 
-                }
-                
-                getRouteBtn.addEventListener('click', onGetRouteClick);
-                clearRouteBtn.addEventListener('click', clearAll);
-
-                // New: Check for destination in the URL on page load
-                const urlPath = window.location.pathname;
-                const pathSegments = urlPath.split('/').filter(Boolean); // Split by '/' and remove empty strings
-                const lastSegment = pathSegments.length > 0 ? decodeURIComponent(pathSegments[pathSegments.length - 1]) : '';
-                
-                if (lastSegment && !lastSegment.includes('.html')) {
-                    destinationInput.value = lastSegment;
-                    onGetRouteClick(); // Automatically start tracking
+                    // Fallback for when no destination is in the URL
+                    statusMessage.textContent = "No destination provided in the URL. Please add '?destination=...' to the URL.";
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(onLocationSuccess, onLocationError, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    } else {
+                        onLocationError(); 
+                    }
                 }
             }
 
@@ -158,7 +126,6 @@
                 startLocation = [position.coords.latitude, position.coords.longitude];
                 setStartMarker();
                 map.setView(startLocation, 12);
-                statusMessage.textContent = "Your location has been set. Enter a destination and click 'Get Route' to start tracking.";
             }
 
             function onLocationError(error) {
@@ -166,7 +133,6 @@
                 startLocation = [37.5665, 126.9780]; // Default location: Seoul, South Korea
                 setStartMarker();
                 map.setView(startLocation, 12);
-                statusMessage.textContent = "Could not get your location. Using Seoul, South Korea as a default.";
             }
 
             function setStartMarker() {
@@ -183,7 +149,59 @@
                     startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
                         .bindPopup("Your current location");
                 }
-                startMarker.openPopup();
+            }
+
+            async function processDestination(destination) {
+                statusMessage.textContent = `Finding route to ${destination}...`;
+
+                // Get user's current location first
+                const getUserLocation = () => new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    } else {
+                        reject(new Error("Geolocation not supported."));
+                    }
+                });
+
+                try {
+                    const position = await getUserLocation();
+                    startLocation = [position.coords.latitude, position.coords.longitude];
+
+                    // Then geocode the destination
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        const errorData = await geocodeResponse.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `Geocoding failed with status: ${geocodeResponse.status}`);
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        statusMessage.textContent = "Destination not found. Please try a different location.";
+                        return;
+                    }
+
+                    const destPoint = geocodeData.features[0].geometry.coordinates;
+                    destinationLocation = [destPoint[1], destPoint[0]];
+                    
+                    setStartMarker(); // Set the start marker based on the acquired location
+                    if (destinationMarker) map.removeLayer(destinationMarker);
+                    destinationMarker = L.marker(destinationLocation).addTo(map)
+                        .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
+                        .openPopup();
+                    
+                    const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+
+                    getRouteAndTravelTime();
+                    startLocationPolling();
+                    
+                } catch (error) {
+                    statusMessage.textContent = `An error occurred: ${error.message}.`;
+                    console.error("Error:", error);
+                }
             }
 
             function startLocationPolling() {
@@ -194,7 +212,7 @@
                             (position) => {
                                 startLocation = [position.coords.latitude, position.coords.longitude];
                                 setStartMarker();
-                                if (destinationLocation) { // Use destinationLocation to check if a destination is set
+                                if (destinationLocation) {
                                     getRouteAndTravelTime();
                                 }
                             },
@@ -210,57 +228,6 @@
                         clearInterval(pollingInterval);
                     }
                 }, DESTINATION_POLL_INTERVAL);
-            }
-
-            async function onGetRouteClick() {
-                const destination = destinationInput.value.trim();
-                if (!destination) {
-                    statusMessage.textContent = "Please enter a destination.";
-                    return;
-                }
-                
-                statusMessage.textContent = `Finding initial route to ${destination}...`;
-                getRouteBtn.disabled = true;
-
-                try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
-                    
-                    if (!geocodeResponse.ok) {
-                        const errorData = await geocodeResponse.json().catch(() => ({}));
-                        throw new Error(errorData.error?.message || `Geocoding failed with status: ${geocodeResponse.status}`);
-                    }
-                    
-                    const geocodeData = await geocodeResponse.json();
-                    
-                    if (geocodeData.features.length === 0) {
-                        statusMessage.textContent = "Destination not found. Please try a different location.";
-                        getRouteBtn.disabled = false;
-                        return;
-                    }
-
-                    const destPoint = geocodeData.features[0].geometry.coordinates;
-                    destinationLocation = [destPoint[1], destPoint[0]];
-                    
-                    if (destinationMarker) map.removeLayer(destinationMarker);
-                    destinationMarker = L.marker(destinationLocation).addTo(map)
-                        .bindPopup(`Destination: ${geocodeData.features[0].properties.label}`)
-                        .openPopup();
-                    
-                    const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [50, 50] });
-
-                    getRouteAndTravelTime();
-                    startLocationPolling();
-                    
-                    getRouteBtn.style.display = 'none';
-                    clearRouteBtn.textContent = 'Reset';
-                    
-                } catch (error) {
-                    statusMessage.textContent = `An error occurred: ${error.message}.`;
-                    console.error("Error:", error);
-                    getRouteBtn.disabled = false;
-                }
             }
 
             function decodePolyline(encoded) {
@@ -343,25 +310,6 @@
                     console.error("Routing Error:", error);
                     statusMessage.textContent = `Error: ${error.message}`;
                     clearInterval(pollingInterval);
-                }
-            }
-
-            function clearAll() {
-                clearInterval(pollingInterval);
-                destinationInput.value = "";
-                destinationLocation = null;
-                if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                if (destinationMarker) map.removeLayer(destinationMarker);
-                currentRouteLayer = null;
-                destinationMarker = null;
-                statusMessage.textContent = "Cleared. Please enter a new destination.";
-                
-                getRouteBtn.style.display = 'flex';
-                getRouteBtn.disabled = false;
-                clearRouteBtn.textContent = 'Clear';
-
-                if (startLocation) {
-                    map.setView(startLocation, 12);
                 }
             }
             
