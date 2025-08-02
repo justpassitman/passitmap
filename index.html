@@ -155,7 +155,7 @@
                     destinationMarker = L.marker(destinationLocation).addTo(map);
                     
                     const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [200, 200] }); // Increased padding to show full popup
+                    map.fitBounds(bounds, { padding: [50, 50] }); // Increased padding to show full popup
 
                     getRouteAndTravelTime();
                     startLocationPolling();
@@ -294,7 +294,7 @@
                         }
                         
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [200, 200] }); // Increased padding for full popup view
+                        map.fitBounds(bounds, { padding: [50, 50] }); // Padding to leave ~10% space
 
                     } else {
                          if (destinationMarker) {
