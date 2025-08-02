@@ -284,7 +284,27 @@
                 if (!startLocation || !destinationLocation) {
                     return; 
                 }
+                
+                // Calculate distance between current location and destination
+                const startLatLng = L.latLng(startLocation);
+                const destinationLatLng = L.latLng(destinationLocation);
+                const distance = startLatLng.distanceTo(destinationLatLng);
 
+                // Check if the user is within 350 meters of the destination
+                if (distance < 350) {
+                    if (timerContainer) {
+                        timerContainer.innerHTML = "<b>Arrived!</b>";
+                    }
+                    if (currentRouteLayer) {
+                        map.removeLayer(currentRouteLayer);
+                        currentRouteLayer = null;
+                    }
+                    // Stop polling for new location data
+                    clearInterval(pollingInterval);
+                    return; // Exit the function
+                }
+
+                // If not close, proceed with fetching the route as normal
                 const orsCoords = [
                     [startLocation[1], startLocation[0]],
                     [destinationLocation[1], destinationLocation[0]]
