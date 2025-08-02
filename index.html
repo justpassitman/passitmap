@@ -34,13 +34,17 @@
                     var destination = [48.8584, 2.2945];
 
                     // Fetch route from OpenRouteService
-                    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=YOUR_API_KEY&start=${userLng},${userLat}&end=2.2945,48.8584`)
+                    fetch(`https://api.openrouteservice.org/v2/directions/driving-car?api_key=API_KEY_PLACEHOLDER&start=${userLng},${userLat}&end=2.2945,48.8584`)
                         .then(response => response.json())
                         .then(data => {
-                            var route = data.features[0].geometry.coordinates;
-                            var latLngs = route.map(coord => [coord[1], coord[0]]);
-                            L.polyline(latLngs, {color: 'blue'}).addTo(map);
-                            map.fitBounds(L.polyline(latLngs).getBounds());
+                            if (data.features && data.features.length > 0) {
+                                var route = data.features[0].geometry.coordinates;
+                                var latLngs = route.map(coord => [coord[1], coord[0]]);
+                                L.polyline(latLngs, {color: 'blue'}).addTo(map);
+                                map.fitBounds(L.polyline(latLngs).getBounds());
+                            } else {
+                                console.error('No route found');
+                            }
                         })
                         .catch(error => console.error('Error fetching route:', error));
                 },
