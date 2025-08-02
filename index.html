@@ -86,7 +86,7 @@
     <script>
         (function() {
             // New: Use the CORS proxy URL and your correct API key
-            const API_KEY = "YOUR_CORRECT_API_KEY_HERE"; // <<<--- REPLACE THIS with your actual, correct API key
+            const API_KEY = "YeyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjNhNTljNmMxNzAxZTQ2NTlhOTNjMWVlMTQ1ZDU0ODYxIiwiaCI6Im11cm11cjY0In0="; // <<<--- REPLACE THIS with your actual, correct API key
             const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'; 
             const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
@@ -165,8 +165,7 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    // New: Use the CORS proxy for the geocode request
-                    const geocodeUrl = `${CORS_PROXY}https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(destination)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
                     
                     if (!geocodeResponse.ok) {
@@ -269,15 +268,14 @@
                 ];
 
                 try {
-                    // New: Use the CORS proxy for the directions request
-                    const directionsUrl = `${CORS_PROXY}https://api.openrouteservice.org/v2/directions/driving-car`;
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/driving-car`;
                     const payload = { coordinates: orsCoords };
 
                     const response = await fetch(directionsUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': API_KEY // The API key must be correct here
+                            'Authorization': API_KEY
                         },
                         body: JSON.stringify(payload)
                     });
