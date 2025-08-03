@@ -102,7 +102,7 @@
     <script>
         (function() {
             // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
-            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
             // The minimum distance the user must move (in meters) before a new API call is made.
             // This prevents excessive API calls while still providing live updates.
@@ -417,7 +417,7 @@
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'red'}).addTo(map);
+                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'skyblue'}).addTo(map);
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
