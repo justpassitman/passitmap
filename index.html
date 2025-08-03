@@ -417,7 +417,7 @@
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'lime green'}).addTo(map);
+                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'skyblue'}).addTo(map);
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
