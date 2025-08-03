@@ -168,21 +168,21 @@
                     
                     let foundDestination = null;
 
-                    // Attempt 1: Try the original address
+                    // Attempt 1: Try the original address as is.
                     foundDestination = await tryGeocode(destination);
 
-                    // Attempt 2: If no result, try a simplified version of the address
+                    // Attempt 2: If no result, try a simplified version of the address.
+                    // This is especially useful for Korean addresses that might include apartment numbers
+                    // or other very specific details that confuse the geocoding service.
                     if (!foundDestination) {
                         const addressParts = destination.split(' ');
-                        // Remove the last part of the address (e.g., "50-1")
                         const simplifiedAddress = addressParts.slice(0, -1).join(' ');
-                        // Only try if the simplified address is different and not empty
                         if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
                             foundDestination = await tryGeocode(simplifiedAddress);
                         }
                     }
 
-                    // Attempt 3: If still no result, try adding ", Seoul"
+                    // Attempt 3: If still no result, try adding ", Seoul" as a final fallback.
                     if (!foundDestination) {
                         foundDestination = await tryGeocode(destination + ", Seoul");
                     }
