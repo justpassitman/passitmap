@@ -165,36 +165,39 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
+                    // First, try to geocode the address as is.
                     let foundDestination = await tryGeocode(destination);
+                    
+                    // If that fails, try a fallback for Korean addresses by adding ", Seoul".
+                    // This improves the chance of a successful lookup without user intervention.
                     if (!foundDestination) {
-                        // Fallback for Korean addresses
                         foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
-                    if (!foundDestination) {
-                        const defaultMessage = "try the building name 🤯";
+                    // If a destination is found, proceed with the best match.
+                    if (foundDestination) {
+                        const destPoint = foundDestination.features[0].geometry.coordinates;
+                        destinationLocation = [destPoint[1], destPoint[0]];
+                        destinationName = foundDestination.features[0].properties.label;
+                        
+                        setStartMarker();
+                        if (destinationMarker) map.removeLayer(destinationMarker);
+                        destinationMarker = L.marker(destinationLocation).addTo(map);
+                        
+                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                        map.fitBounds(bounds, { padding: [20, 20] });
+
+                        getRouteAndTravelTime();
+                        startLocationPolling();
+                    } else {
+                        // If no match is found after both attempts, show a generic error.
+                        const defaultMessage = "Address not found. 🤯";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
                         } else {
                              L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
                         }
-                        return;
                     }
-
-                    const destPoint = foundDestination.features[0].geometry.coordinates;
-                    destinationLocation = [destPoint[1], destPoint[0]];
-                    destinationName = foundDestination.features[0].properties.label;
-                    
-                    setStartMarker();
-                    if (destinationMarker) map.removeLayer(destinationMarker);
-                    destinationMarker = L.marker(destinationLocation).addTo(map);
-                    
-                    const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                    map.fitBounds(bounds, { padding: [20, 20] });
-
-                    getRouteAndTravelTime();
-                    startLocationPolling();
-                    
                 } catch (error) {
                     console.error("Error:", error);
                     let errorMessage = "🤯 GPS out or simplify the adress";
