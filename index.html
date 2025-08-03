@@ -165,17 +165,28 @@
                 try {
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
-
-                    // First, try to geocode the address as is.
-                    let foundDestination = await tryGeocode(destination);
                     
-                    // If that fails, try a fallback for Korean addresses by adding ", Seoul".
-                    // This improves the chance of a successful lookup without user intervention.
+                    let foundDestination = null;
+
+                    // Attempt 1: Try the original address
+                    foundDestination = await tryGeocode(destination);
+
+                    // Attempt 2: If no result, try a simplified version of the address
+                    if (!foundDestination) {
+                        const addressParts = destination.split(' ');
+                        // Remove the last part of the address (e.g., "50-1")
+                        const simplifiedAddress = addressParts.slice(0, -1).join(' ');
+                        // Only try if the simplified address is different and not empty
+                        if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                            foundDestination = await tryGeocode(simplifiedAddress);
+                        }
+                    }
+
+                    // Attempt 3: If still no result, try adding ", Seoul"
                     if (!foundDestination) {
                         foundDestination = await tryGeocode(destination + ", Seoul");
                     }
                     
-                    // If a destination is found, proceed with the best match.
                     if (foundDestination) {
                         const destPoint = foundDestination.features[0].geometry.coordinates;
                         destinationLocation = [destPoint[1], destPoint[0]];
@@ -191,7 +202,7 @@
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
-                        // If no match is found after both attempts, show a generic error.
+                        // If no match is found after all attempts, show a generic error.
                         const defaultMessage = "Address not found. 🤯";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
