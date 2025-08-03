@@ -138,11 +138,11 @@
 
             function setStartMarker() {
                  const duckIcon = L.icon({
-                    iconUrl: 'duck.png',
-                    iconSize: [38, 38],
-                    iconAnchor: [19, 38],
-                    popupAnchor: [0, -38]
-                });
+                     iconUrl: 'duck.png',
+                     iconSize: [38, 38],
+                     iconAnchor: [19, 38],
+                     popupAnchor: [0, -38]
+                 });
                 
                 if (startMarker) {
                     startMarker.setLatLng(startLocation);
@@ -318,7 +318,7 @@
                 ];
 
                 try {
-                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/driving-car`;
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
                     const payload = { coordinates: orsCoords };
 
                     const response = await fetch(directionsUrl, {
@@ -363,8 +363,8 @@
 
                     } else {
                          if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 GPS out or simplify the address";
-                        }
+                             timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                         }
                     }
 
                 } catch (error) {
