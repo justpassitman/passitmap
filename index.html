@@ -87,7 +87,6 @@
         (function() {
             // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
             const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
-            const DESTINATION_POLL_INTERVAL = 5000; // 5 seconds
             
             let map = null;
             let startLocation = null;
@@ -96,7 +95,7 @@
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
-            let pollingInterval = null;
+            let locationWatchId = null; // Store the watchPosition ID
             let destinationName = null;
             let timerContainer = null;
 
@@ -247,49 +246,52 @@
                     return null;
                 }
             }
-
+            
+            // This function now uses the more battery-efficient watchPosition API
             function startLocationPolling() {
-                clearInterval(pollingInterval);
-                pollingInterval = setInterval(() => {
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(
-                            (position) => {
-                                const newPosition = [position.coords.latitude, position.coords.longitude];
-                                
-                                // Check if this is the first position or if the user has moved significantly
-                                if (!lastKnownPosition) {
-                                    lastKnownPosition = newPosition;
-                                    startLocation = newPosition;
-                                    setStartMarker();
-                                    if (destinationLocation) {
-                                        getRouteAndTravelTime();
-                                    }
-                                } else {
-                                    const lastLatLng = L.latLng(lastKnownPosition);
-                                    const newLatLng = L.latLng(newPosition);
-                                    const distance = lastLatLng.distanceTo(newLatLng);
-                                    
-                                    // Only update if the user has moved more than 10 meters
-                                    if (distance > 10) {
-                                        lastKnownPosition = newPosition;
-                                        startLocation = newPosition;
-                                        setStartMarker();
-                                        if (destinationLocation) {
-                                            getRouteAndTravelTime();
-                                        }
-                                    }
+                // Clear any previous watch to prevent multiple listeners
+                if (locationWatchId) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                }
+                
+                // Use watchPosition to monitor for changes in the user's location
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const newPosition = [position.coords.latitude, position.coords.longitude];
+                        
+                        // Check if this is the first position or if the user has moved significantly
+                        if (!lastKnownPosition) {
+                            lastKnownPosition = newPosition;
+                            startLocation = newPosition;
+                            setStartMarker();
+                            if (destinationLocation) {
+                                getRouteAndTravelTime();
+                            }
+                        } else {
+                            const lastLatLng = L.latLng(lastKnownPosition);
+                            const newLatLng = L.latLng(newPosition);
+                            const distance = lastLatLng.distanceTo(newLatLng);
+                            
+                            // Only update if the user has moved more than 10 meters, saving API calls and battery
+                            if (distance > 10) {
+                                lastKnownPosition = newPosition;
+                                startLocation = newPosition;
+                                setStartMarker();
+                                if (destinationLocation) {
+                                    getRouteAndTravelTime();
                                 }
-                            },
-                            (error) => {
-                                console.error("Real-time geolocation error:", error);
-                                clearInterval(pollingInterval);
-                            },
-                            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                        );
-                    } else {
-                        clearInterval(pollingInterval);
-                    }
-                }, DESTINATION_POLL_INTERVAL);
+                            }
+                        }
+                    },
+                    (error) => {
+                        console.error("Real-time geolocation error:", error);
+                        // If an error occurs, stop watching the position to save resources
+                        if (locationWatchId) {
+                            navigator.geolocation.clearWatch(locationWatchId);
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
             }
 
             function decodePolyline(encoded) {
@@ -341,8 +343,11 @@
                         map.removeLayer(currentRouteLayer);
                         currentRouteLayer = null;
                     }
-                    // Stop polling for new location data
-                    clearInterval(pollingInterval);
+                    // Stop polling for new location data to save battery
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
                     return; // Exit the function
                 }
 
@@ -407,7 +412,10 @@
                     if (timerContainer) {
                         timerContainer.innerHTML = error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address";
                     }
-                    clearInterval(pollingInterval);
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
                 }
             }
             
