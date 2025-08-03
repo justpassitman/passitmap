@@ -65,6 +65,21 @@
             font-weight: bold;
             color: #333;
         }
+
+        /* New CSS for the wiggle animation */
+        @keyframes wiggle-up-down {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .wiggle-text {
+            display: inline-block;
+            animation: wiggle-up-down 1s ease-in-out infinite;
+        }
     </style>
     <!-- Leaflet CSS for the map -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -337,7 +352,8 @@
                 // Check if the user is within 350 meters of the destination
                 if (distance < 350) {
                     if (timerContainer) {
-                        timerContainer.innerHTML = "<b>Almost! 🥳</b>";
+                        // Apply the new wiggle-text class
+                        timerContainer.innerHTML = `<b><span class="wiggle-text">Almost! 🥳</span></b>`;
                     }
                     if (currentRouteLayer) {
                         map.removeLayer(currentRouteLayer);
