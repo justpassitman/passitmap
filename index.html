@@ -104,10 +104,15 @@
             // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
             const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
             
+            // The minimum distance the user must move (in meters) before a new API call is made.
+            // This prevents excessive API calls while still providing live updates.
+            const minDistanceForApiCall = 500;
+            
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
             let lastKnownPosition = null; // Store the last position to check for significant movement
+            let lastApiCallPosition = null; // Store the last position from which we made an API call
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
@@ -214,6 +219,8 @@
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
                         map.fitBounds(bounds, { padding: [20, 20] });
 
+                        // Initial API call
+                        lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
@@ -278,26 +285,30 @@
                         // Check if this is the first position or if the user has moved significantly
                         if (!lastKnownPosition) {
                             lastKnownPosition = newPosition;
-                            startLocation = newPosition;
-                            setStartMarker();
-                            if (destinationLocation) {
+                        }
+                        
+                        const lastLatLng = L.latLng(lastKnownPosition);
+                        const newLatLng = L.latLng(newPosition);
+                        const distanceMoved = lastLatLng.distanceTo(newLatLng);
+                        
+                        // Always update the duck's location to provide a live-tracking feel
+                        startLocation = newPosition;
+                        setStartMarker();
+                        
+                        // Check if the user has moved more than the minimum distance for a new API call
+                        if (lastApiCallPosition) {
+                            const lastApiLatLng = L.latLng(lastApiCallPosition);
+                            const distanceSinceLastCall = lastApiLatLng.distanceTo(newLatLng);
+                            
+                            if (distanceSinceLastCall > minDistanceForApiCall) {
+                                // Update the last API call position and fetch a new route
+                                lastApiCallPosition = newPosition;
                                 getRouteAndTravelTime();
                             }
-                        } else {
-                            const lastLatLng = L.latLng(lastKnownPosition);
-                            const newLatLng = L.latLng(newPosition);
-                            const distance = lastLatLng.distanceTo(newLatLng);
-                            
-                            // Only update if the user has moved more than 10 meters, saving API calls and battery
-                            if (distance > 10) {
-                                lastKnownPosition = newPosition;
-                                startLocation = newPosition;
-                                setStartMarker();
-                                if (destinationLocation) {
-                                    getRouteAndTravelTime();
-                                }
-                            }
                         }
+
+                        // Update the last known position for the next movement check
+                        lastKnownPosition = newPosition;
                     },
                     (error) => {
                         console.error("Real-time geolocation error:", error);
