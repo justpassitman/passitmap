@@ -92,6 +92,7 @@
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
+            let lastKnownPosition = null; // Store the last position to check for significant movement
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
@@ -242,10 +243,30 @@
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(
                             (position) => {
-                                startLocation = [position.coords.latitude, position.coords.longitude];
-                                setStartMarker();
-                                if (destinationLocation) {
-                                    getRouteAndTravelTime();
+                                const newPosition = [position.coords.latitude, position.coords.longitude];
+                                
+                                // Check if this is the first position or if the user has moved significantly
+                                if (!lastKnownPosition) {
+                                    lastKnownPosition = newPosition;
+                                    startLocation = newPosition;
+                                    setStartMarker();
+                                    if (destinationLocation) {
+                                        getRouteAndTravelTime();
+                                    }
+                                } else {
+                                    const lastLatLng = L.latLng(lastKnownPosition);
+                                    const newLatLng = L.latLng(newPosition);
+                                    const distance = lastLatLng.distanceTo(newLatLng);
+                                    
+                                    // Only update if the user has moved more than 10 meters
+                                    if (distance > 10) {
+                                        lastKnownPosition = newPosition;
+                                        startLocation = newPosition;
+                                        setStartMarker();
+                                        if (destinationLocation) {
+                                            getRouteAndTravelTime();
+                                        }
+                                    }
                                 }
                             },
                             (error) => {
