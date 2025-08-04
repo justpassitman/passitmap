@@ -188,23 +188,34 @@
 
                 if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
                     lastApiCallPosition = currentCoords;
+                    
+                    // Logic to try multiple route types in order
+                    let routeData = null;
+                    let routeType = null;
                     try {
-                        // First, try to get a bicycle route
-                        const routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
-                        drawRoute(routeData);
-                        displayRouteInfo(routeData, 'bicycle');
+                        routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
+                        routeType = 'bicycle';
                     } catch (bicycleError) {
-                        console.error("Bicycle route failed:", bicycleError);
-                        // If bicycle route fails, try to get a car route
+                        console.log("Bicycle route failed, trying car route...", bicycleError);
                         try {
-                            const routeData = await fetchCarRoute(currentCoords, destinationCoords);
-                            drawRoute(routeData);
-                            displayRouteInfo(routeData, 'car');
+                            routeData = await fetchCarRoute(currentCoords, destinationCoords);
+                            routeType = 'car';
                         } catch (carError) {
-                            console.error("Car route also failed:", carError);
-                            // If both fail, display a generic error message
-                            timerContainer.innerHTML = `🤯 Could not find a route.`;
+                            console.log("Car route failed, trying walking route...", carError);
+                            try {
+                                routeData = await fetchWalkingRoute(currentCoords, destinationCoords);
+                                routeType = 'walk';
+                            } catch (walkError) {
+                                console.error("All route types failed:", walkError);
+                            }
                         }
+                    }
+
+                    if (routeData && routeType) {
+                        drawRoute(routeData);
+                        displayRouteInfo(routeData, routeType);
+                    } else {
+                        timerContainer.innerHTML = `⚠️ No route found.`;
                     }
                 }
             }
@@ -321,6 +332,37 @@
                 }
                 return response.json();
             }
+            
+            // --- Fetches a walking route using the Kakao Mobility API ---
+            async function fetchWalkingRoute(start, end) {
+                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
+                const headers = {
+                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
+                    'Content-Type': 'application/json'
+                };
+                const body = {
+                    origin: {
+                        x: start.getLng(),
+                        y: start.getLat()
+                    },
+                    destination: {
+                        x: end.getLng(),
+                        y: end.getLat()
+                    },
+                    priority: 'WALK' // Specifies a walking route
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
+                }
+                return response.json();
+            }
 
             function drawRoute(routeData) {
                 if (polyline) polyline.setMap(null);
@@ -355,7 +397,18 @@
             function displayRouteInfo(routeData, routeType) {
                 const route = routeData.routes[0];
                 const duration = Math.round(route.summary.duration / 60);
-                let emoji = routeType === 'car' ? '🚗' : '';
+                let emoji = '';
+                switch (routeType) {
+                    case 'car':
+                        emoji = '🚗';
+                        break;
+                    case 'bicycle':
+                        emoji = '🚲';
+                        break;
+                    case 'walk':
+                        emoji = '�';
+                        break;
+                }
                 timerContainer.innerHTML = `<b>${duration} min ${emoji}</b>`;
             }
             
@@ -364,3 +417,4 @@
     </script>
 </body>
 </html>
+�
