@@ -134,7 +134,7 @@
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 6, // Adjusted the initial zoom level to be more zoomed in
+                    level: 9, 
                     draggable: false,
                     scrollwheel: false,
                     disableDoubleClick: true,
@@ -246,6 +246,16 @@
                 return null;
             }
 
+            // Function to apply a maximum zoom level after a pan or zoom event.
+            function adjustZoomLevel() {
+                // We want to keep a good balance, not too zoomed in, not too far out.
+                // A level of 6 is a good compromise for a small widget showing a city-wide route.
+                const currentLevel = map.getLevel();
+                if (currentLevel > 6) {
+                    map.setLevel(6);
+                }
+            }
+
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -294,6 +304,9 @@
                         bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                         bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
                         map.setBounds(bounds);
+                        
+                        // Immediately adjust the zoom level after setting the bounds to prevent over-zooming out.
+                        adjustZoomLevel();
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
@@ -482,13 +495,9 @@
                         const bounds = new kakao.maps.LatLngBounds();
                         path.forEach(latLng => bounds.extend(latLng));
                         map.setBounds(bounds);
-                        // Added a timeout to adjust the zoom level further after the bounds are set.
-                        setTimeout(() => {
-                            const currentLevel = map.getLevel();
-                            if (currentLevel > 2) {
-                                map.setLevel(currentLevel - 3);
-                            }
-                        }, 500);
+                        
+                        // Immediately adjust the zoom level after setting the bounds to prevent over-zooming out.
+                        adjustZoomLevel();
 
                     } else {
                         if (timerContainer) {
