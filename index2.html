@@ -163,10 +163,8 @@
                 // Changed the image source to a relative path to your local 'duck.png' file.
                 // This will work when the file is run from your local machine with the image in the same directory.
                 const imageSrc = 'duck.png';
-                // Resized the duck marker by half, as requested
-                const imageSize = new kakao.maps.Size(30, 30);
-                // Adjusted the offset to keep the marker's tip correctly positioned
-                const imageOption = { offset: new kakao.maps.Point(15, 30) };
+                const imageSize = new kakao.maps.Size(40, 40);
+                const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
                 const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
 
@@ -294,15 +292,9 @@
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        map.setBounds(bounds);
-
-                        // Adjust the zoom level to show more road detail.
-                        // A lower number means a more detailed, zoomed-in view.
-                        map.setLevel(map.getLevel() - 2);
-
+                        // Call the function to automatically adjust the map view.
+                        adjustMapView();
+                        
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
@@ -318,6 +310,26 @@
                     }
                 }
             }
+
+            // This new function handles the dynamic centering and zooming.
+            function adjustMapView() {
+                if (!startLocation || !destinationLocation) {
+                    return;
+                }
+                const startLatLng = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
+                const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+
+                // Create a LatLngBounds object and extend it to include both markers.
+                // This will automatically calculate the best zoom level and center to fit both points.
+                const bounds = new kakao.maps.LatLngBounds();
+                bounds.extend(startLatLng);
+                bounds.extend(destinationLatLng);
+
+                // Pan the map to the new bounds smoothly.
+                map.panTo(bounds.getCenter());
+                map.setBounds(bounds);
+            }
+
 
             function startLocationPolling() {
                 if (locationWatchId) {
@@ -336,6 +348,9 @@
 
                         startLocation = newPosition;
                         setStartMarker();
+
+                        // Call the dynamic map view adjustment whenever the position updates.
+                        adjustMapView();
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -486,14 +501,8 @@
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
-
-                        const bounds = new kakao.maps.LatLngBounds();
-                        path.forEach(latLng => bounds.extend(latLng));
-                        map.setBounds(bounds);
-
-                        // Adjust the zoom level to show more road detail.
-                        // A lower number means a more detailed, zoomed-in view.
-                        map.setLevel(map.getLevel() - 2);
+                        // We no longer set the bounds here. The new `adjustMapView`
+                        // function, called in the location watcher, handles this dynamically.
 
                     } else {
                         if (timerContainer) {
