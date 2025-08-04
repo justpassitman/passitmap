@@ -136,13 +136,14 @@
         
         /*
         * This animation creates a pulsing green glow for the destination marker.
+        * The box-shadow values have been increased to make the glow thicker.
         */
         @keyframes glow-green-pulse {
             0%, 100% {
-                box-shadow: 0 0 5px 0px rgba(0, 255, 0, 0.4);
+                box-shadow: 0 0 15px 0px rgba(0, 255, 0, 0.4);
             }
             50% {
-                box-shadow: 0 0 15px 5px rgba(0, 255, 0, 0.8);
+                box-shadow: 0 0 45px 15px rgba(0, 255, 0, 0.8);
             }
         }
         
@@ -184,10 +185,10 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
-            // The max marker size has been doubled from 15px to 30px.
-            const maxMarkerSize = 30;
-            // The base marker size has been doubled from 10px to 20px.
-            const baseMarkerSize = 20;
+            // The max marker size has been tripled to 90px.
+            const maxMarkerSize = 90;
+            // The base marker size has been tripled to 60px.
+            const baseMarkerSize = 60;
 
             let map = null;
             let startLocation = null;
