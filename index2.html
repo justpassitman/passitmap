@@ -86,8 +86,6 @@
     
     <script>
         (function() {
-            // Your API keys
-            const KAKAO_JAVASCRIPT_KEY = "00a03dac8488d12731e4021756938e72";
             const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
             const minDistanceForApiCall = 500;
@@ -109,16 +107,19 @@
 
                 const mapContainer = document.getElementById('map');
                 const mapOptions = {
-                    center: new kakao.maps.LatLng(37.5665, 126.9780), // Set to Seoul as default
-                    level: 5 // Set initial zoom level
+                    center: new kakao.maps.LatLng(37.5665, 126.9780),
+                    level: 5
                 };
                 map = new kakao.maps.Map(mapContainer, mapOptions);
+
+                // This is the fix. It forces the map to redraw, which is often needed
+                // when the container's final size is determined after initialization.
+                map.relayout();
 
                 map.setZoomable(false);
                 map.setDraggable(false);
                 map.setKeyboardShortcuts(false);
                 
-                // Initialize Kakao Geocoder
                 geocoder = new kakao.maps.services.Geocoder();
 
                 const urlParams = new URLSearchParams(window.location.search);
@@ -174,7 +175,6 @@
                     const position = await getUserLocation();
                     startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
                     
-                    // Use Kakao Geocoder for robust Korean address search
                     geocoder.addressSearch(destination, function(result, status) {
                         if (status === kakao.maps.services.Status.OK) {
                             destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
@@ -293,7 +293,6 @@
                     return;
                 }
 
-                // Openrouteservice expects coordinates in [lng, lat] format
                 const orsCoords = [
                     [startLocation.getLng(), startLocation.getLat()],
                     [destinationLocation.getLng(), destinationLocation.getLat()]
