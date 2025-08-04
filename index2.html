@@ -145,6 +145,12 @@
             let timerContainer = null;
             let isMapInitialized = false;
 
+            const duckImageSrc = 'https://placehold.co/40x40/FFD700/000000?text=duck';
+            const destinationImageSrc = 'https://placehold.co/40x40/000000/FFFFFF?text=dest';
+
+            // A base size for markers that will be scaled dynamically
+            const baseMarkerSize = 40;
+
             /**
             * Initializes the map and fetches the destination from URL parameters.
             */
@@ -166,6 +172,12 @@
                 map = new kakao.maps.Map(mapContainer, mapOption);
                 isMapInitialized = true;
 
+                // Add an event listener to the map to dynamically resize markers on zoom change.
+                kakao.maps.event.addListener(map, 'zoom_changed', function() {
+                    const level = map.getLevel();
+                    updateMarkerSize(level);
+                });
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
                 
@@ -179,6 +191,34 @@
             }
 
             /**
+            * Updates the size of the markers based on the map's current zoom level.
+            * This ensures the markers are visually "constant" relative to the screen, not the map scale.
+            * @param {number} level The current zoom level of the map.
+            */
+            function updateMarkerSize(level) {
+                if (!startMarker || !destinationMarker) return;
+
+                // A scaling factor to make markers bigger as the map zooms out (higher level number)
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2.5)), 120);
+
+                const duckImage = new kakao.maps.MarkerImage(
+                    duckImageSrc,
+                    new kakao.maps.Size(scale, scale),
+                    { offset: new kakao.maps.Point(scale / 2, scale) }
+                );
+                
+                const destinationImage = new kakao.maps.MarkerImage(
+                    destinationImageSrc,
+                    new kakao.maps.Size(scale, scale),
+                    { offset: new kakao.maps.Point(scale / 2, scale) }
+                );
+
+                startMarker.setImage(duckImage);
+                destinationMarker.setImage(destinationImage);
+            }
+
+
+            /**
             * Updates the start marker on the map with the latest position.
             */
             function setStartMarker() {
@@ -187,14 +227,15 @@
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
-
-                // Corrected the image source to a placeholder URL since local files
-                // like 'duck.png' cannot be loaded in this environment.
-                const imageSrc = 'https://placehold.co/40x40/FFD700/000000?text=duck';
-                const imageSize = new kakao.maps.Size(40, 40);
-                const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
-                const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+                const currentLevel = map.getLevel();
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
+                
+                // For the 'duck.png' image, a placeholder URL is used as local files cannot be loaded.
+                const imageSize = new kakao.maps.Size(scale, scale);
+                const imageOption = { offset: new kakao.maps.Point(scale / 2, scale) };
+                
+                const markerImage = new kakao.maps.MarkerImage(duckImageSrc, imageSize, imageOption);
 
                 startMarker = new kakao.maps.Marker({
                     map: map,
@@ -343,10 +384,20 @@
                         if (destinationMarker) {
                             destinationMarker.setMap(null);
                         }
+
+                        const currentLevel = map.getLevel();
+                        const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
+
+                        const destinationImage = new kakao.maps.MarkerImage(
+                            destinationImageSrc,
+                            new kakao.maps.Size(scale, scale),
+                            { offset: new kakao.maps.Point(scale / 2, scale) }
+                        );
                         
                         destinationMarker = new kakao.maps.Marker({
                             map: map,
-                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
+                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                            image: destinationImage
                         });
                         
                         const bounds = new kakao.maps.LatLngBounds();
@@ -544,8 +595,8 @@
 
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 5,
-                            strokeColor: '#87CEEB',
+                            strokeWeight: 7, // Increased stroke weight for a more prominent line
+                            strokeColor: '#00B050', // Changed the color to a vibrant green
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
