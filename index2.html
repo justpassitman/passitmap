@@ -189,7 +189,6 @@
                 if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
                     lastApiCallPosition = currentCoords;
                     
-                    // Logic to try multiple route types in order
                     let routeData = null;
                     let routeType = null;
                     try {
@@ -226,6 +225,7 @@
                 updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
             }
 
+            // --- Updated geocodeAddress function for more robust address parsing ---
             function geocodeAddress(address) {
                 return new Promise((resolve, reject) => {
                     const geocoder = new kakao.maps.services.Geocoder();
@@ -240,15 +240,18 @@
                         });
                     };
                     
+                    // Attempt 1: Search with the original address
                     searchAndResolve(address, () => {
-                        const simplifiedAddress1 = address.replace(/\s\d+호$/, '');
+                        // Attempt 2: Simplify by removing floor/level info (e.g., "지하", "2층")
+                        const simplifiedAddress1 = address.replace(/(지하|층)\s?\d+$/, '');
                         if (simplifiedAddress1 !== address) {
                             searchAndResolve(simplifiedAddress1, () => {
-                                const simplifiedAddress2 = simplifiedAddress1.replace(/\s\d+-\d+번지$/, '');
+                                // Attempt 3: Simplify further by removing building number details
+                                const simplifiedAddress2 = simplifiedAddress1.replace(/\s\d+-\d+(\s\d+)?$/, '');
                                 if (simplifiedAddress2 !== simplifiedAddress1) {
                                     searchAndResolve(simplifiedAddress2, () => reject(new Error('All geocoding attempts failed.')));
                                 } else {
-                                    reject(new Error('Geocoding attempts failed after simplification 1.'));
+                                    reject(new Error('Geocoding attempts failed after simplification 2.'));
                                 }
                             });
                         } else {
@@ -406,7 +409,7 @@
                         emoji = '🚲';
                         break;
                     case 'walk':
-                        emoji = '�';
+                        emoji = '🚶';
                         break;
                 }
                 timerContainer.innerHTML = `<b>${duration} min ${emoji}</b>`;
@@ -417,4 +420,3 @@
     </script>
 </body>
 </html>
-�
