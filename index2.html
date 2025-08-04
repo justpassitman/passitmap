@@ -135,24 +135,14 @@
         }
         
         /*
-        * This animation creates a pulsing green glow for the destination marker.
+        * Removed the glow-green animation.
+        * Added a thick dark green border around the destination marker container.
         */
-        @keyframes glow-green-pulse {
-            0%, 100% {
-                /* Thicker and darker glow from the center */
-                box-shadow: 0 0 10px 5px rgba(0, 150, 0, 0.5);
-            }
-            50% {
-                /* Thicker and darker glow with more spread */
-                box-shadow: 0 0 40px 10px rgba(0, 150, 0, 0.9);
-            }
-        }
-        
-        .glow-green {
-            animation: glow-green-pulse 2s ease-in-out infinite;
-            transition: box-shadow 0.3s ease-in-out;
-            background-color: transparent; /* Ensure background is transparent */
-            border-radius: 9999px; /* Fully rounded corners for the glow */
+        .destination-marker-container {
+            border: 4px solid darkgreen;
+            border-radius: 9999px; /* Fully rounded corners for the border */
+            box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
+            transition: all 0.3s ease-in-out;
         }
         
         /*
@@ -164,22 +154,19 @@
         }
 
         /*
-        * New animation for the 'f.png' image to make it balance left and right.
+        * New animation for the 'f.png' image to make it jump slowly.
         */
-        @keyframes balance-f-png {
-            0% {
-                transform: rotate(-45deg);
+        @keyframes jump-f-png {
+            0%, 100% {
+                transform: translateY(0);
             }
             50% {
-                transform: rotate(45deg);
-            }
-            100% {
-                transform: rotate(-45deg);
+                transform: translateY(-10px);
             }
         }
 
-        .balance-f-png {
-            animation: balance-f-png 2s ease-in-out infinite;
+        .jump-f-png {
+            animation: jump-f-png 2s ease-in-out infinite;
             transform-origin: center;
         }
     </style>
@@ -342,7 +329,7 @@
 
                 // The new HTML content for the glowing marker using the `d.png` image.
                 const content = `
-                    <div id="destination-marker-container" class="glow-green flex items-center justify-center rounded-full" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                    <div id="destination-marker-container" class="destination-marker-container flex items-center justify-center rounded-full" style="width: ${destinationScale}px; height: ${destinationScale}px;">
                          <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
                     </div>
                 `;
@@ -502,7 +489,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = 'Address not found. �';
                         }
                     }
                 } catch (error) {
@@ -621,10 +608,18 @@
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
                 const destinationImageElement = document.getElementById('destination-image');
-                const destinationMarkerContainer = document.getElementById('destination-marker-container');
                 
+                // Clear any existing animations for a clean state.
+                if (duckImageElement) duckImageElement.classList.remove('wiggle-duck');
+                if (destinationImageElement) destinationImageElement.classList.remove('jump-f-png');
+                
+                // Always set the destination image to d.png by default.
+                if (destinationImageElement) {
+                    destinationImageElement.src = destinationImageSrc;
+                }
+
                 if (distance < 350) {
-                    // Add the wiggle animation when close to the destination
+                    // State 1: Arrived at destination
                     if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
                     }
@@ -640,28 +635,28 @@
                         locationWatchId = null;
                     }
                     
-                    // Change the destination marker from 'd.png' to 'f.png' and add balancing animation
+                    // Change the destination marker to 'f.png' and add the slow jump animation
                     if (destinationImageElement) {
                         destinationImageElement.src = chickImageSrc;
-                        destinationImageElement.classList.add('balance-f-png');
-                        if (destinationMarkerContainer) {
-                            destinationMarkerContainer.classList.remove('glow-green');
-                        }
+                        destinationImageElement.classList.add('jump-f-png');
                     }
-
                     return;
-                } else {
-                    // Remove the wiggle animation if the distance is greater than 350m
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
+
+                } else if (distance < 700) {
+                    // State 2: Getting close to destination
+                    if (timerContainer) {
+                        // The timer will be updated by the API call, but we can set a temporary message
+                        timerContainer.innerHTML = 'Getting close...';
                     }
-                    // Ensure the marker is 'd.png' and glowing if the user moves away
+                    // The destination marker remains d.png, and we add the slow jump animation
                     if (destinationImageElement) {
-                        destinationImageElement.src = destinationImageSrc;
-                        destinationImageElement.classList.remove('balance-f-png');
-                        if (destinationMarkerContainer) {
-                            destinationMarkerContainer.classList.add('glow-green');
-                        }
+                        destinationImageElement.classList.add('jump-f-png');
+                    }
+                } else {
+                    // State 3: Far from destination
+                    // The destination marker remains d.png, and no animation is applied.
+                    if (timerContainer) {
+                        timerContainer.innerHTML = 'Calculating route...';
                     }
                 }
 
@@ -762,3 +757,4 @@
     </script>
 </body>
 </html>
+�
