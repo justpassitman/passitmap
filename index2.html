@@ -73,7 +73,7 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JAVASCRIPT_KEY&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JAVASCRIPT_KEY"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -86,11 +86,11 @@
     
     <script>
         (function() {
-            // !!! IMPORTANT: Replace "YOUR_KAKAO_JAVASCRIPT_KEY" with your actual key !!!
-            // And also make sure your domain is registered in the Kakao Developers console.
+            // !!! IMPORTANT: Replace with your actual API keys !!!
             const KAKAO_JAVASCRIPT_KEY = "00a03dac8488d12731e4021756938e72";
-            const KAKAO_REST_API_KEY = "dad89b90a6acaa5acadc74e2329cab63"; // You will also need a REST API key for the Directions API
-
+            const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=
+";
+            
             const minDistanceForApiCall = 500;
             
             let map = null;
@@ -104,25 +104,20 @@
             let locationWatchId = null; 
             let destinationName = null;
             let timerContainer = null;
-            let geocoder = null;
 
             function init() {
                 timerContainer = document.getElementById('timer-container');
 
                 const mapContainer = document.getElementById('map');
                 const mapOptions = {
-                    center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 5
+                    center: new kakao.maps.LatLng(37.5665, 126.9780), // Set to Seoul as default
+                    level: 5 // Set initial zoom level
                 };
                 map = new kakao.maps.Map(mapContainer, mapOptions);
 
-                // Disable zoom and other controls for a cleaner widget feel
                 map.setZoomable(false);
                 map.setDraggable(false);
                 map.setKeyboardShortcuts(false);
-                
-                // Initialize the geocoder service
-                geocoder = new kakao.maps.services.Geocoder();
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -134,7 +129,7 @@
                     map.setCenter(startLocation);
                 }
             }
-
+            
             function setStartMarker() {
                  const imageSrc = 'duck.png',
                        imageSize = new kakao.maps.Size(38, 38),
@@ -177,29 +172,59 @@
                     const position = await getUserLocation();
                     startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
                     
-                    geocoder.addressSearch(destination, async function(result, status) {
-                        if (status === kakao.maps.services.Status.OK) {
-                            destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
-                            destinationName = result[0].address_name;
-                            
-                            setStartMarker();
-                            setDestinationMarker();
-                            
-                            const bounds = new kakao.maps.LatLngBounds();
-                            bounds.extend(startLocation);
-                            bounds.extend(destinationLocation);
-                            map.setBounds(bounds);
+                    let foundDestination = await tryGeocode(destination);
+                    
+                    if (foundDestination) {
+                        const destPoint = foundDestination.features[0].geometry.coordinates;
+                        // ORS coordinates are [lng, lat], Kakao are [lat, lng]
+                        destinationLocation = new kakao.maps.LatLng(destPoint[1], destPoint[0]); 
+                        destinationName = foundDestination.features[0].properties.label;
+                        
+                        setStartMarker();
+                        setDestinationMarker();
+                        
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(startLocation);
+                        bounds.extend(destinationLocation);
+                        map.setBounds(bounds);
 
-                            lastApiCallPosition = startLocation;
-                            getRouteAndTravelTime();
-                            startLocationPolling();
-                        } else {
-                            handleError("Address not found. 🤯");
-                        }
-                    });
+                        lastApiCallPosition = startLocation;
+                        getRouteAndTravelTime();
+                        startLocationPolling();
+                    } else {
+                        handleError("Address not found. 🤯");
+                    }
                 } catch (error) {
                     console.error("Error:", error);
                     handleError("🤯 GPS out or simplify the address");
+                }
+            }
+
+            async function tryGeocode(query) {
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        const errorData = await geocodeResponse.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${geocodeResponse.status}`;
+                        if (geocodeResponse.status === 403) {
+                            throw new Error("Invalid API key.");
+                        }
+                        throw new Error(`Geocoding error: ${errorMessage}`);
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        return null;
+                    }
+                    
+                    return geocodeData;
+                } catch (error) {
+                    console.error("Geocoding failed:", error);
+                    handleError(error.message);
+                    return null;
                 }
             }
 
@@ -216,7 +241,6 @@
                             lastKnownPosition = newPosition;
                         }
                         
-                        // Use the distanceTo function provided by Kakao Maps
                         const distanceMoved = lastKnownPosition.getDistance(newPosition);
                         
                         startLocation = newPosition;
@@ -244,6 +268,36 @@
                 );
             }
 
+            function decodePolyline(encoded) {
+                let points = [];
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
+
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
+
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
+
+                    points.push([lat / 1e5, lng / 1e5]);
+                }
+                return points;
+            }
+
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return; 
@@ -267,29 +321,29 @@
                 }
 
                 const orsCoords = [
-                    startLocation.getLng(), 
-                    startLocation.getLat()
-                ];
-                
-                const destCoords = [
-                    destinationLocation.getLng(),
-                    destinationLocation.getLat()
+                    [startLocation.getLng(), startLocation.getLat()],
+                    [destinationLocation.getLng(), destinationLocation.getLat()]
                 ];
 
                 try {
-                    const directionsUrl = `https://apis-navi.kakaomobility.com/v1/directions`;
-                    
-                    const response = await fetch(directionsUrl + `?origin=${orsCoords}&destination=${destCoords}&priority=TIME&car_fuel=GASOLINE&car_hipass=false&alternatives=false&road_details=false&road_infos=true&summary=true`, {
-                        method: 'GET',
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
+                    const payload = { coordinates: orsCoords };
+
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `KakaoAK ${KAKAO_REST_API_KEY}`
-                        }
+                            'Authorization': OPENROUTESERVICE_API_KEY
+                        },
+                        body: JSON.stringify(payload)
                     });
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
-                        const errorMessage = errorData.msg || `API request failed with status: ${response.status}`;
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        if (response.status === 403) {
+                             throw new Error("Invalid API key.");
+                        }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
 
@@ -297,19 +351,11 @@
                     
                     if (data && data.routes && data.routes.length > 0) {
                         const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
                         const durationInSeconds = route.summary.duration;
-                        
-                        const polyline = route.sections[0].roads.reduce((acc, current) => {
-                            acc.push(...current.vertexes);
-                            return acc;
-                        }, []);
 
-                        const linePath = [];
-                        for (let i = 0; i < polyline.length; i+=2) {
-                            const lat = polyline[i+1];
-                            const lng = polyline[i];
-                            linePath.push(new kakao.maps.LatLng(lat, lng));
-                        }
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        const linePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
                         if (currentRouteLayer) {
                             currentRouteLayer.setPath(linePath);
@@ -336,12 +382,12 @@
                         map.setBounds(bounds);
 
                     } else {
-                         handleError("🤯 GPS out or simplify the address");
+                         handleError("🤯 No route found");
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
-                    handleError(error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address");
+                    handleError(error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 No route found");
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
