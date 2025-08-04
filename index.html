@@ -135,21 +135,30 @@
         }
         
         /*
-        * The animation now pulses both the stroke and the fill of the SVG.
+        * This animation creates a pulsing green glow for the destination marker.
         */
-        @keyframes pulse-blue {
+        @keyframes glow-green-pulse {
             0%, 100% {
-                stroke: #1565C0; /* Dark blue */
-                fill: #1565C0;
+                box-shadow: 0 0 5px 0px rgba(0, 255, 0, 0.4);
             }
             50% {
-                stroke: #2196F3; /* Light blue */
-                fill: #2196F3;
+                box-shadow: 0 0 15px 5px rgba(0, 255, 0, 0.8);
             }
         }
-
-        .pulse-blue {
-            animation: pulse-blue 1.5s ease-in-out infinite;
+        
+        .glow-green {
+            animation: glow-green-pulse 2s ease-in-out infinite;
+            transition: box-shadow 0.3s ease-in-out;
+            background-color: transparent; /* Ensure background is transparent */
+            border-radius: 9999px; /* Fully rounded corners for the glow */
+        }
+        
+        /*
+        * Styling for the destination emoji itself.
+        */
+        .destination-emoji {
+            font-size: 1.5rem; /* Large enough to be visible, but scales with container */
+            line-height: 1; /* Prevents extra spacing */
         }
     </style>
     <!--
@@ -238,15 +247,21 @@
                 if (!startOverlay || !destinationOverlay) return;
                 
                 const duckImageElement = document.getElementById('duck-image');
-                const destinationImageElement = document.getElementById('destination-image');
-                if (!duckImageElement || !destinationImageElement) return;
+                const destinationContainer = document.getElementById('destination-marker-container');
+                if (!duckImageElement || !destinationContainer) return;
 
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
 
                 duckImageElement.style.width = `${scale}px`;
                 duckImageElement.style.height = `${scale}px`;
-                destinationImageElement.style.width = `${scale}px`;
-                destinationImageElement.style.height = `${scale}px`;
+                
+                // Update the destination marker size
+                destinationContainer.style.width = `${scale}px`;
+                destinationContainer.style.height = `${scale}px`;
+                const emoji = destinationContainer.querySelector('.destination-emoji');
+                if (emoji) {
+                    emoji.style.fontSize = `${scale / 2}px`; // Adjust emoji size based on container
+                }
             }
 
             /**
@@ -303,14 +318,12 @@
                 
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                
+                const emojiFontSize = scale / 2; // Dynamic font size
+
+                // The new HTML content for the glowing egg marker.
                 const content = `
-                    <div style="position: relative; width: ${scale}px; height: ${scale}px; display: flex; align-items: center; justify-content: center;">
-                         <!-- The SVG stroke color has been changed to a dark blue and the 'pulse-blue' class has been added. -->
-                         <svg id="destination-image" class="pulse-blue" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="#1565C0" stroke="#1565C0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="10" r="3" fill="white" stroke="none"/>
-                            <path d="M12 2a8 8 0 0 0-8 8c0 7.2 8 12 8 12s8-4.8 8-12a8 8 0 0 0-8-8z" />
-                        </svg>
+                    <div id="destination-marker-container" class="glow-green flex items-center justify-center rounded-full" style="width: ${scale}px; height: ${scale}px;">
+                         <span id="destination-emoji" class="destination-emoji" style="font-size: ${emojiFontSize}px;">🥚</span>
                     </div>
                 `;
 
@@ -587,6 +600,8 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
+                const destinationEmoji = document.getElementById('destination-emoji');
+                const destinationMarkerContainer = document.getElementById('destination-marker-container');
                 
                 if (distance < 350) {
                     // Add the wiggle animation when close to the destination
@@ -594,7 +609,6 @@
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     if (timerContainer) {
-                        // The emoji has been replaced with a text string.
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
                     if (routePolyline) {
@@ -605,11 +619,27 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
+                    
+                    // Change the destination marker from egg to chick and remove the glow
+                    if (destinationEmoji) {
+                        destinationEmoji.innerText = '🐣';
+                        if (destinationMarkerContainer) {
+                            destinationMarkerContainer.classList.remove('glow-green');
+                        }
+                    }
+
                     return;
                 } else {
                     // Remove the wiggle animation if the distance is greater than 350m
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    // Ensure the marker is an egg and glowing if the user moves away
+                    if (destinationEmoji) {
+                        destinationEmoji.innerText = '🥚';
+                        if (destinationMarkerContainer) {
+                            destinationMarkerContainer.classList.add('glow-green');
+                        }
                     }
                 }
 
