@@ -421,14 +421,16 @@
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.type = 'text/javascript';
-                script.src = "//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services";
+                script.src = "//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false";
                 script.onload = () => {
-                    // Check if the kakao.maps object is available
-                    if (window.kakao && window.kakao.maps) {
-                        resolve();
-                    } else {
-                        reject(new Error('Kakao Maps SDK loaded but kakao.maps object is not available.'));
-                    }
+                    // Manually call the init method after the script is loaded
+                    kakao.maps.load(() => {
+                        if (window.kakao && window.kakao.maps) {
+                            resolve();
+                        } else {
+                            reject(new Error('Kakao Maps SDK loaded but kakao.maps object is not available.'));
+                        }
+                    });
                 };
                 script.onerror = () => reject(new Error('Failed to load Kakao Maps SDK.'));
                 document.head.appendChild(script);
