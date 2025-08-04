@@ -135,60 +135,45 @@
         }
 
         /*
-        * The destination marker now uses a clip-path for an upside-down triangle shape
-        * and a light green background.
+        * A new animation for the blue glowing pulse effect on the destination marker.
         */
-        .triangle-marker {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #90ee90; /* light green */
-            clip-path: polygon(0% 100%, 50% 0%, 100% 100%);
+        @keyframes glowing-blue-pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(0, 119, 255, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(0, 119, 255, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(0, 119, 255, 0);
+            }
         }
 
-        /*
-        * Styling for the destination image itself.
-        */
-        .destination-image {
-            width: 100%;
-            height: 100%;
+        .glowing-marker-container {
             position: relative;
             z-index: 10;
         }
 
-        /*
-        * New animation for the 'd.png' image to make it balance gently.
-        */
-        @keyframes balance-animation {
-            0%, 100% { transform: rotateZ(0deg); }
-            25% { transform: rotateZ(-5deg); }
-            75% { transform: rotateZ(5deg); }
+        .glowing-marker-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #0077ff;
+            opacity: 0.6;
+            animation: glowing-blue-pulse 1.5s infinite;
         }
 
-        .balance-animation {
-            animation: balance-animation 2s ease-in-out infinite;
-            transform-origin: center;
-        }
-        
-        /*
-        * The animation for the 'f.png' image is now 60% faster.
-        * The duration has been reduced from 2s to 0.8s.
-        */
-        @keyframes fast-jump-f-png {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-10px);
-            }
+        .destination-image {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            height: 100%;
         }
 
-        .fast-jump-f-png {
-            animation: fast-jump-f-png 0.8s ease-in-out infinite;
-            transform-origin: center;
-        }
     </style>
     <!--
     * Kakao JavaScript API key provided by the user.
@@ -215,7 +200,7 @@
             const minDistanceForApiCall = 350;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
-            const destinationSizeMultiplier = 2.5; // New multiplier for destination marker
+            const destinationSizeMultiplier = 1.875; // Reduced by 25% from 2.5
 
             let map = null;
             let startLocation = null;
@@ -230,8 +215,8 @@
             let isMapInitialized = false;
 
             const duckImageSrc = 'duck.png';
-            const destinationImageSrc = 'd.png'; // New image for the destination
-            const chickImageSrc = 'f.png'; // New image for the chick
+            const destinationImageSrc = 'd.png';
+            const chickImageSrc = 'f.png';
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
@@ -285,11 +270,13 @@
                 duckImageElement.style.width = `${duckScale}px`;
                 duckImageElement.style.height = `${duckScale}px`;
                 
-                // Calculate destination marker size
+                // Calculate destination marker size based on the new multiplier
                 const destinationScale = duckScale * destinationSizeMultiplier;
-                // Update the parent container's size to match the calculated scale
-                destinationImageElement.parentElement.style.width = `${destinationScale}px`;
-                destinationImageElement.parentElement.style.height = `${destinationScale}px`;
+                const destinationContainer = document.getElementById('glowing-marker-container');
+                if (destinationContainer) {
+                    destinationContainer.style.width = `${destinationScale}px`;
+                    destinationContainer.style.height = `${destinationScale}px`;
+                }
             }
 
             /**
@@ -328,7 +315,7 @@
                         map: map,
                         position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                         content: content,
-                        yAnchor: 1.1, /* Adjusted to lower the marker by 10% */
+                        yAnchor: 1.1,
                         zIndex: 2
                     });
                 }
@@ -348,11 +335,11 @@
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 const destinationScale = duckScale * destinationSizeMultiplier;
 
-                // The HTML content for the new triangle marker.
+                // The HTML content for the new glowing marker.
                 const content = `
-                    <div id="destination-marker-container" class="relative flex items-center justify-center" style="width: ${destinationScale}px; height: ${destinationScale}px; transform-origin: center bottom;">
-                         <div class="triangle-marker"></div>
-                         <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
+                    <div id="glowing-marker-container" class="relative flex items-center justify-center" style="width: ${destinationScale}px; height: ${destinationScale}px; transform-origin: center bottom;">
+                        <div class="glowing-marker-ring"></div>
+                        <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
                     </div>
                 `;
 
@@ -360,7 +347,7 @@
                     map: map,
                     position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
                     content: content,
-                    yAnchor: 1.1, /* Adjusted to lower the marker by 10% */
+                    yAnchor: 1.1,
                     zIndex: 1
                 });
             }
@@ -630,18 +617,6 @@
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
                 const destinationImageElement = document.getElementById('destination-image');
-                
-                // Clear any existing animations for a clean state.
-                if (duckImageElement) duckImageElement.classList.remove('wiggle-duck');
-                if (destinationImageElement) {
-                    destinationImageElement.classList.remove('balance-animation');
-                    destinationImageElement.classList.remove('fast-jump-f-png');
-                }
-                
-                // Always set the destination image to d.png by default.
-                if (destinationImageElement) {
-                    destinationImageElement.src = destinationImageSrc;
-                }
 
                 if (distance < 350) {
                     // State 1: Arrived at destination
@@ -660,26 +635,21 @@
                         locationWatchId = null;
                     }
                     
-                    // Change the destination marker to 'f.png' and add the faster jump animation
+                    // Change the destination marker to 'f.png' and remove all animations
                     if (destinationImageElement) {
                         destinationImageElement.src = chickImageSrc;
-                        destinationImageElement.classList.add('fast-jump-f-png');
                     }
                     return;
 
-                } else if (distance < 700) {
-                    // State 2: Getting close to destination
-                    if (timerContainer) {
-                        // The timer will be updated by the API call, but we can set a temporary message
-                        timerContainer.innerHTML = 'Getting close...';
-                    }
-                    // The destination marker remains d.png, and we add the new balancing animation
-                    if (destinationImageElement) {
-                        destinationImageElement.classList.add('balance-animation');
-                    }
                 } else {
-                    // State 3: Far from destination
-                    // The destination marker remains d.png, and no animation is applied.
+                    // State 2: Far from destination
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    // The destination marker is d.png, and no animation is applied on the image itself.
+                    if (destinationImageElement) {
+                        destinationImageElement.src = destinationImageSrc;
+                    }
                     if (timerContainer) {
                         timerContainer.innerHTML = 'Calculating route...';
                     }
