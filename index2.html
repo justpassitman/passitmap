@@ -132,34 +132,28 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 300;
+            const maxMarkerSize = 15; // A new constant for the maximum marker size in pixels.
+            const baseMarkerSize = 10; // A smaller base size for the markers.
 
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
             let lastKnownPosition = null;
             let lastApiCallPosition = null;
-            // The start marker is now a CustomOverlay to allow for dynamic flipping
             let startOverlay = null; 
-            let destinationMarker = null;
+            let destinationOverlay = null; // Changed to a CustomOverlay for dynamic sizing
             let routePolyline = null;
             let locationWatchId = null;
             let timerContainer = null;
             let isMapInitialized = false;
 
-            // Use the provided duck.png file for the current position marker.
             const duckImageSrc = 'duck.png';
-
-            // A base size for the duck marker, now divided by 3 as requested.
-            const baseMarkerSize = 40 / 3;
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
-                /*
-                * Display a loading message while the route is being calculated.
-                */
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -173,10 +167,10 @@
                 map = new kakao.maps.Map(mapContainer, mapOption);
                 isMapInitialized = true;
 
-                // Add an event listener to the map to dynamically resize the duck image on zoom change.
+                // Add a single event listener to the map to dynamically resize all markers on zoom change.
                 kakao.maps.event.addListener(map, 'zoom_changed', function() {
                     const level = map.getLevel();
-                    updateDuckImageSize(level);
+                    updateAllMarkerSizes(level);
                 });
 
                 const urlParams = new URLSearchParams(window.location.search);
@@ -185,28 +179,30 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
-                    // Set a default start location if no destination is provided.
                     startLocation = [37.5665, 126.9780];
                     setStartMarker();
                 }
             }
-
+            
             /**
-            * Updates the size of the duck image based on the map's current zoom level.
-            * This is necessary because we are now using a CustomOverlay instead of a Marker.
-            * @param {number} level The current zoom level of the map.
-            */
-            function updateDuckImageSize(level) {
-                if (!startOverlay) return;
+             * A single function to update the size of both markers based on the map's current zoom level.
+             * This keeps the sizing logic consistent for both the duck and destination markers.
+             * @param {number} level The current zoom level of the map.
+             */
+            function updateAllMarkerSizes(level) {
+                if (!startOverlay || !destinationOverlay) return;
                 
                 const duckImageElement = document.getElementById('duck-image');
-                if (!duckImageElement) return;
+                const destinationImageElement = document.getElementById('destination-image');
+                if (!duckImageElement || !destinationImageElement) return;
 
-                // A scaling factor to make the duck bigger as the map zooms out (higher level number)
-                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2.5)), 120);
+                // The scale is now capped at `maxMarkerSize` to prevent markers from getting too large.
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
 
                 duckImageElement.style.width = `${scale}px`;
                 duckImageElement.style.height = `${scale}px`;
+                destinationImageElement.style.width = `${scale}px`;
+                destinationImageElement.style.height = `${scale}px`;
             }
 
             /**
@@ -216,43 +212,72 @@
             function setStartMarker() {
                 if (!isMapInitialized) return;
                 
-                // If there's an existing overlay, remove it first.
                 if (startOverlay) {
                     startOverlay.setMap(null);
                 }
 
-                // Check if the duck needs to be flipped horizontally.
                 let shouldFlip = false;
                 if (startLocation && destinationLocation) {
                     if (startLocation[1] > destinationLocation[1]) {
-                        shouldFlip = true; // Destination is to the left, flip the duck
+                        shouldFlip = true;
                     }
                 }
                 
-                // Dynamically size the marker based on the new, smaller base size.
                 const currentLevel = map.getLevel();
-                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
-                // Create the HTML content for the custom overlay.
                 const content = `
                     <div style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
                         <img id="duck-image" src="${duckImageSrc}" alt="Current Position" style="width: 100%; height: 100%;">
                     </div>
                 `;
 
-                // Create the custom overlay
                 startOverlay = new kakao.maps.CustomOverlay({
                     map: map,
                     position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                     content: content,
-                    yAnchor: 1.0, // Anchor the bottom of the overlay to the map position
-                    zIndex: 2 // Place the duck on top of the destination marker
+                    yAnchor: 1.0, 
+                    zIndex: 2
                 });
             }
 
             /**
+             * Sets or updates the destination marker on the map.
+             * This also uses a CustomOverlay to allow for dynamic sizing and styling.
+             */
+            function setDestinationMarker() {
+                if (!isMapInitialized || !destinationLocation) return;
+                
+                if (destinationOverlay) {
+                    destinationOverlay.setMap(null);
+                }
+                
+                const currentLevel = map.getLevel();
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                
+                // Using an SVG for a lightweight, scalable destination marker.
+                const content = `
+                    <div style="position: relative; width: ${scale}px; height: ${scale}px; display: flex; align-items: center; justify-content: center;">
+                         <svg id="destination-image" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="#E30A20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="10" r="3" />
+                            <path d="M12 2a8 8 0 0 0-8 8c0 7.2 8 12 8 12s8-4.8 8-12a8 8 0 0 0-8-8z" />
+                        </svg>
+                    </div>
+                `;
+
+                destinationOverlay = new kakao.maps.CustomOverlay({
+                    map: map,
+                    position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                    content: content,
+                    yAnchor: 1.0,
+                    zIndex: 1
+                });
+            }
+
+
+            /**
             * A new function to automatically adjust the map view to fit both the start and destination markers.
-            * This ensures both are always visible, which was the main problem.
+            * A small padding of 20 pixels is added to ensure markers are not cut off at the edges.
             */
             function updateMapViewToFitMarkers() {
                 if (!isMapInitialized || !startLocation || !destinationLocation) {
@@ -263,8 +288,8 @@
                 bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                 bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
                 
-                // The `setBounds` method is called without padding to focus on the travel.
-                map.setBounds(bounds);
+                // Add a small padding (in pixels) to keep the markers close to the edge without being cut off.
+                map.setBounds(bounds, 20);
             }
 
             /**
@@ -388,28 +413,16 @@
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
                         setStartMarker();
-
-                        if (destinationMarker) {
-                            destinationMarker.setMap(null);
-                        }
-
-                        // Use the default Kakao Maps marker for the destination
-                        destinationMarker = new kakao.maps.Marker({
-                            map: map,
-                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                        });
+                        setDestinationMarker();
                         
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        map.setBounds(bounds);
+                        updateMapViewToFitMarkers();
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -441,7 +454,6 @@
                         startLocation = newPosition;
                         setStartMarker();
 
-                        // Update the map view to always fit both the start and destination markers.
                         updateMapViewToFitMarkers();
 
                         if (lastApiCallPosition) {
@@ -594,8 +606,8 @@
 
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 7, // Increased stroke weight for a more prominent line
-                            strokeColor: '#00B050', // Changed the color to a vibrant green
+                            strokeWeight: 7,
+                            strokeColor: '#00B050',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
@@ -607,9 +619,6 @@
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
-                        
-                        // The map bounds will be adjusted by updateMapViewToFitMarkers() in the polling function.
-                        // We do not need to set bounds here as it might conflict with the new logic.
 
                     } else {
                         if (timerContainer) {
@@ -643,4 +652,3 @@
     </script>
 </body>
 </html>
-�
