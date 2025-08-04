@@ -96,17 +96,15 @@
          */
         function initMap() {
             // NOTE: Using the provided Openrouteservice API key.
-            const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
+            // const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
-            // Minimum distance in meters before a new API call is made to save quota.
-            const minDistanceForApiCall = 500;
+            // Average bicycle speed to calculate estimated time
             const avgBicycleSpeedMetersPerSec = 4.16; // 15 km/h
             
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
             let lastKnownPosition = null;
-            let lastApiCallPosition = null;
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
@@ -157,7 +155,8 @@
                         bounds.extend(destinationLocation);
                         map.setBounds(bounds);
                         
-                        getRouteAndTravelTime();
+                        // Always use the fallback route for reliability
+                        fallbackRoute();
                     } else {
                         // Geocoding fails, fall back to a simple line
                         destinationLocation = defaultCenter;
@@ -170,23 +169,12 @@
             }
 
             function setStartMarker() {
-                // Use a custom SVG for the duck icon
-                const duckSvg = `<svg width="38" height="38" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2C8.68629 2 6 4.68629 6 8V12C6 15.3137 8.68629 18 12 18H18V12C18 8.68629 15.3137 2 12 2Z" fill="#F8A525" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M12 18V22" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12Z" fill="#F8F8F8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M12 2H18V12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12V8C6 4.68629 8.68629 2 12 2Z" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M12 20C12 20.5523 12.4477 21 13 21C13.5523 21 14 20.5523 14 20C14 19.4477 13.5523 19 13 19C12.4477 19 12 19.4477 12 20Z" fill="#E8B54D"/>
-                    <path d="M13 22C13.5523 22 14 21.5523 14 21V20C14 19.4477 13.5523 19 13 19C12.4477 19 12 19.4477 12 20V21C12 21.5523 12.4477 22 13 22Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M10 12L12 10" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>`;
-
-                // Create a data URL for the SVG icon
-                const duckIconDataUrl = 'data:image/svg+xml;base64,' + btoa(duckSvg);
+                // Use a custom PNG image for the duck icon
+                const duckIconUrl = `duck.png`;
                 const imageSize = new kakao.maps.Size(38, 38);
                 const imageOption = {offset: new kakao.maps.Point(19, 38)};
                 
-                const duckIcon = new kakao.maps.MarkerImage(duckIconDataUrl, imageSize, imageOption);
+                const duckIcon = new kakao.maps.MarkerImage(duckIconUrl, imageSize, imageOption);
 
                 if (startMarker) {
                     startMarker.setPosition(startLocation);
@@ -216,7 +204,7 @@
                         (position) => {
                             // If we get a location, use it and start polling
                             startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                            lastApiCallPosition = startLocation;
+                            lastKnownPosition = startLocation;
                             geocodeDestinationAndRoute(dest);
                             startLocationPolling();
                         },
@@ -250,15 +238,8 @@
                         startLocation = newPosition;
                         setStartMarker();
                         
-                        if (lastApiCallPosition) {
-                            const distanceSinceLastCall = lastApiCallPosition.getDistance(newPosition);
-                            
-                            if (distanceSinceLastCall > minDistanceForApiCall) {
-                                lastApiCallPosition = newPosition;
-                                getRouteAndTravelTime();
-                            }
-                        }
-
+                        // Update the route and time with the new position
+                        fallbackRoute();
                         lastKnownPosition = newPosition;
                     },
                     (error) => {
@@ -271,36 +252,6 @@
                 );
             }
 
-            function decodePolyline(encoded) {
-                let points = [];
-                let index = 0, len = encoded.length;
-                let lat = 0, lng = 0;
-
-                while (index < len) {
-                    let b, shift = 0, result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lat += dlat;
-
-                    shift = 0;
-                    result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lng += dlng;
-
-                    points.push([lat / 1e5, lng / 1e5]);
-                }
-                return points;
-            }
-            
             function fallbackRoute() {
                 if (!startLocation || !destinationLocation) return;
                 const straightDistance = startLocation.getDistance(destinationLocation);
@@ -324,95 +275,6 @@
                 
                 if (timerContainer) {
                     timerContainer.innerHTML = `<b>${estimatedTime} min (est.)</b>`;
-                }
-            }
-
-            async function getRouteAndTravelTime() {
-                if (!startLocation || !destinationLocation) {
-                    return;
-                }
-                
-                const distance = startLocation.getDistance(destinationLocation);
-
-                if (distance < 350) {
-                    if (timerContainer) {
-                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
-                    }
-                    if (currentRouteLayer) {
-                        currentRouteLayer.setMap(null);
-                        currentRouteLayer = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    return;
-                }
-
-                const orsCoords = [
-                    [startLocation.getLng(), startLocation.getLat()],
-                    [destinationLocation.getLng(), destinationLocation.getLat()]
-                ];
-
-                try {
-                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
-                    const payload = { coordinates: orsCoords };
-
-                    const response = await fetch(directionsUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': OPENROUTESERVICE_API_KEY
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        throw new Error(`API request failed with status: ${response.status} and message: ${errorData.error?.message || 'unknown'}.`);
-                    }
-
-                    const data = await response.json();
-                    
-                    if (data && data.routes && data.routes.length > 0) {
-                        const route = data.routes[0];
-                        const encodedGeometry = route.geometry;
-                        const durationInSeconds = route.summary.duration;
-
-                        const routeCoordinates = decodePolyline(encodedGeometry);
-                        const linePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-
-                        if (currentRouteLayer) {
-                            currentRouteLayer.setPath(linePath);
-                            currentRouteLayer.setOptions({ strokeColor: '#0066FF', strokeStyle: 'solid'});
-                        } else {
-                            currentRouteLayer = new kakao.maps.Polyline({
-                                path: linePath,
-                                strokeWidth: 5,
-                                strokeColor: '#0066FF',
-                                strokeOpacity: 0.8,
-                                strokeStyle: 'solid'
-                            });
-                            currentRouteLayer.setMap(map);
-                        }
-                        
-                        const durationInMinutes = Math.round(durationInSeconds / 60);
-                        
-                        if (timerContainer) {
-                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
-                        }
-                        
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(startLocation);
-                        bounds.extend(destinationLocation);
-                        map.setBounds(bounds);
-
-                    } else {
-                        fallbackRoute();
-                    }
-
-                } catch (error) {
-                    fallbackRoute();
                 }
             }
         }
