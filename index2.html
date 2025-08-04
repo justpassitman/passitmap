@@ -299,6 +299,7 @@
             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
+                timerContainer.style.display = 'block'; // Ensure it is visible initially
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -810,7 +811,7 @@
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     if (timerContainer) {
-                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                        timerContainer.style.display = 'none'; // Hide the box when the "🥳" message would have appeared
                     }
                     if (routePolyline) {
                          routePolyline.setMap(null);
@@ -829,6 +830,7 @@
                         duckImageElement.classList.remove('wiggle-duck');
                     }
                     if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
                         timerContainer.innerHTML = 'Calculating route...';
                     }
                     stopQuacking();
@@ -839,6 +841,7 @@
                         duckImageElement.classList.remove('wiggle-duck');
                     }
                     if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
                         timerContainer.innerHTML = 'Calculating route...';
                     }
                     stopQuacking();
@@ -849,6 +852,7 @@
                         duckImageElement.classList.remove('wiggle-duck');
                     }
                     if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
                         timerContainer.innerHTML = 'Calculating route...';
                     }
                     stopQuacking();
