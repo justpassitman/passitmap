@@ -135,45 +135,116 @@
         }
 
         /*
-        * A new animation for the blue glowing pulse effect on the destination marker.
+        * New CSS for the quack animation
         */
-        @keyframes glowing-blue-pulse {
+        @keyframes quack-left {
             0% {
-                box-shadow: 0 0 0 0 rgba(0, 119, 255, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(0, 119, 255, 0);
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
             }
             100% {
-                box-shadow: 0 0 0 0 rgba(0, 119, 255, 0);
+                transform: translate(-15px, -30px) scale(0.8);
+                opacity: 0;
             }
         }
 
-        .glowing-marker-container {
-            position: relative;
-            z-index: 10;
+        @keyframes quack-right {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(15px, -30px) scale(0.8);
+                opacity: 0;
+            }
         }
 
-        .glowing-marker-ring {
+        .quack-text {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            font-size: 10px;
+            font-weight: bold;
+            color: #000;
+            white-space: nowrap;
+            animation-duration: 1s;
+            animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            animation-fill-mode: forwards;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .quack-left {
+            left: 0;
+            bottom: 50%;
+            animation-name: quack-left;
+        }
+
+        .quack-right {
+            right: 0;
+            bottom: 50%;
+            animation-name: quack-right;
+        }
+
+        /*
+        * Animation for the gentle balancing effect (for d.png).
+        */
+        @keyframes gentle-balance {
+            0%, 100% {
+                transform: rotate(-3deg);
+            }
+            50% {
+                transform: rotate(3deg);
+            }
+        }
+
+        .destination-marker-animated {
+            animation: gentle-balance 2s ease-in-out infinite;
+        }
+
+        /*
+        * New animation for the energetic balancing effect (for f.png).
+        */
+        @keyframes energetic-balance {
+            0%, 100% {
+                transform: rotate(-5deg);
+            }
+            50% {
+                transform: rotate(5deg);
+            }
+        }
+
+        .destination-marker-energetic {
+            animation: energetic-balance 0.5s ease-in-out infinite;
+        }
+
+        .default-marker-container {
+            width: 30px;
+            height: 30px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform-origin: center bottom;
+        }
+
+        .default-marker-outer {
             width: 100%;
             height: 100%;
             border-radius: 50%;
-            background-color: #0077ff;
-            opacity: 0.6;
-            animation: glowing-blue-pulse 1.5s infinite;
+            background-color: #0088ff;
+        }
+        
+        .default-marker-inner {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            border-radius: 50%;
+            background-color: #fff;
         }
 
         .destination-image {
-            position: relative;
-            z-index: 1;
             width: 100%;
             height: 100%;
         }
-
     </style>
     <!--
     * Kakao JavaScript API key provided by the user.
@@ -198,9 +269,12 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
+            const gentleAnimationDistance = 700; // Distance for the d.png marker with gentle animation
+            const energeticAnimationDistance = 350; // New distance for the f.png marker with energetic animation
+            const arrivalDistance = 50; // New, very close distance to trigger 'arrived' state
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
-            const destinationSizeMultiplier = 1.875; // Reduced by 25% from 2.5
+            const destinationSizeMultiplier = 1.875;
 
             let map = null;
             let startLocation = null;
@@ -208,11 +282,13 @@
             let lastKnownPosition = null;
             let lastApiCallPosition = null;
             let startOverlay = null; 
-            let destinationOverlay = null;
+            let destinationOverlay = null; // Single variable for the destination marker overlay
             let routePolyline = null;
             let locationWatchId = null;
             let timerContainer = null;
             let isMapInitialized = false;
+            let quackIntervalId = null;
+            let quackDirection = 'left';
 
             const duckImageSrc = 'duck.png';
             const destinationImageSrc = 'd.png';
@@ -241,7 +317,7 @@
                     const level = map.getLevel();
                     updateAllMarkerSizes(level);
                 });
-
+                
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
                 
@@ -259,11 +335,10 @@
              * @param {number} level The current zoom level of the map.
              */
             function updateAllMarkerSizes(level) {
-                if (!startOverlay || !destinationOverlay) return;
+                if (!startOverlay) return;
                 
                 const duckImageElement = document.getElementById('duck-image');
-                const destinationImageElement = document.getElementById('destination-image');
-                if (!duckImageElement || !destinationImageElement) return;
+                if (!duckImageElement) return;
 
                 // Calculate duck marker size
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
@@ -272,10 +347,68 @@
                 
                 // Calculate destination marker size based on the new multiplier
                 const destinationScale = duckScale * destinationSizeMultiplier;
-                const destinationContainer = document.getElementById('glowing-marker-container');
+                const destinationContainer = document.getElementById('destination-marker-container');
                 if (destinationContainer) {
                     destinationContainer.style.width = `${destinationScale}px`;
                     destinationContainer.style.height = `${destinationScale}px`;
+                }
+            }
+            
+            /**
+             * Updates the destination marker's visual state based on distance.
+             * @param {string} state - The desired state ('default', 'gentle', 'energetic', 'arrived').
+             */
+            function updateDestinationMarkerState(state) {
+                if (!isMapInitialized || !destinationLocation) {
+                    return;
+                }
+
+                if (destinationOverlay) {
+                    destinationOverlay.setMap(null);
+                    destinationOverlay = null;
+                }
+                
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                const destinationScale = duckScale * destinationSizeMultiplier;
+                
+                let content = '';
+                let className = '';
+                let imgSrc = '';
+                
+                if (state === 'default') {
+                    content = `
+                        <div id="destination-marker-container" class="default-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                            <div class="default-marker-outer"></div>
+                            <div class="default-marker-inner"></div>
+                        </div>
+                    `;
+                } else if (state === 'gentle') {
+                    className = 'destination-marker-animated';
+                    imgSrc = destinationImageSrc;
+                } else if (state === 'energetic' || state === 'arrived') {
+                    if (state === 'energetic') {
+                         className = 'destination-marker-energetic';
+                    }
+                    imgSrc = chickImageSrc;
+                }
+
+                if (state !== 'default') {
+                    content = `
+                        <div id="destination-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                            <img id="destination-image" src="${imgSrc}" alt="Destination" class="destination-image ${className}">
+                        </div>
+                    `;
+                }
+                
+                if (content) {
+                    destinationOverlay = new kakao.maps.CustomOverlay({
+                        map: map,
+                        position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                        content: content,
+                        yAnchor: 1.1,
+                        zIndex: 1
+                    });
                 }
             }
 
@@ -306,7 +439,7 @@
                 } else {
                     // Create the HTML content for the custom overlay.
                     const content = `
-                        <div style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
+                        <div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
                             <img id="duck-image" src="${duckImageSrc}" alt="Current Position" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
                         </div>
                     `;
@@ -320,38 +453,6 @@
                     });
                 }
             }
-
-            /**
-             * Sets or updates the destination marker on the map.
-             */
-            function setDestinationMarker() {
-                if (!isMapInitialized || !destinationLocation) return;
-                
-                if (destinationOverlay) {
-                    destinationOverlay.setMap(null);
-                }
-                
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                const destinationScale = duckScale * destinationSizeMultiplier;
-
-                // The HTML content for the new glowing marker.
-                const content = `
-                    <div id="glowing-marker-container" class="relative flex items-center justify-center" style="width: ${destinationScale}px; height: ${destinationScale}px; transform-origin: center bottom;">
-                        <div class="glowing-marker-ring"></div>
-                        <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
-                    </div>
-                `;
-
-                destinationOverlay = new kakao.maps.CustomOverlay({
-                    map: map,
-                    position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                    content: content,
-                    yAnchor: 1.1,
-                    zIndex: 1
-                });
-            }
-
 
             /**
             * A new function to automatically adjust the map view to fit both the start and destination markers.
@@ -489,7 +590,7 @@
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
                         setStartMarker();
-                        setDestinationMarker();
+                        updateDestinationMarkerState('default');
                         
                         updateMapViewToFitMarkers();
 
@@ -607,6 +708,58 @@
             }
 
             /**
+             * Creates and animates a "quack!" text element.
+             */
+            function createQuack() {
+                const duckContainer = document.getElementById('duck-marker-container');
+                if (!duckContainer) return;
+
+                const quack = document.createElement('div');
+                quack.innerHTML = '<b>quack !</b>';
+                quack.classList.add('quack-text');
+
+                // Alternate between left and right quacks
+                if (quackDirection === 'left') {
+                    quack.classList.add('quack-left');
+                    quackDirection = 'right';
+                } else {
+                    quack.classList.add('quack-right');
+                    quackDirection = 'left';
+                }
+
+                duckContainer.appendChild(quack);
+
+                // Remove the quack element after 1 second (matching the animation duration)
+                setTimeout(() => {
+                    quack.remove();
+                }, 1000);
+            }
+
+            /**
+             * Starts the quack animation interval.
+             */
+            function startQuacking() {
+                if (quackIntervalId) return; // Don't start if already running
+                quackIntervalId = setInterval(createQuack, 500);
+            }
+
+            /**
+             * Stops the quack animation interval and removes any existing quack elements.
+             */
+            function stopQuacking() {
+                if (quackIntervalId) {
+                    clearInterval(quackIntervalId);
+                    quackIntervalId = null;
+                    const duckContainer = document.getElementById('duck-marker-container');
+                    if (duckContainer) {
+                        const quacks = duckContainer.querySelectorAll('.quack-text');
+                        quacks.forEach(q => q.remove());
+                    }
+                }
+            }
+
+
+            /**
             * Fetches the route and travel time from the OpenRouteService API.
             */
             async function getRouteAndTravelTime() {
@@ -616,10 +769,11 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
-                const destinationImageElement = document.getElementById('destination-image');
-
-                if (distance < 350) {
+                
+                // State machine for destination marker based on distance
+                if (distance < arrivalDistance) {
                     // State 1: Arrived at destination
+                    updateDestinationMarkerState('arrived');
                     if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
                     }
@@ -634,25 +788,38 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
-                    
-                    // Change the destination marker to 'f.png' and remove all animations
-                    if (destinationImageElement) {
-                        destinationImageElement.src = chickImageSrc;
-                    }
+                    startQuacking();
                     return;
-
-                } else {
-                    // State 2: Far from destination
+                } else if (distance < energeticAnimationDistance) {
+                    // State 2: Very close to destination (energetic animation)
+                    updateDestinationMarkerState('energetic');
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    // The destination marker is d.png, and no animation is applied on the image itself.
-                    if (destinationImageElement) {
-                        destinationImageElement.src = destinationImageSrc;
                     }
                     if (timerContainer) {
                         timerContainer.innerHTML = 'Calculating route...';
                     }
+                    stopQuacking();
+                } else if (distance < gentleAnimationDistance) {
+                    // State 3: Close to destination (gentle animation)
+                    updateDestinationMarkerState('gentle');
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.innerHTML = 'Calculating route...';
+                    }
+                    stopQuacking();
+                } else {
+                    // State 4: Far from destination (default marker)
+                    updateDestinationMarkerState('default');
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.innerHTML = 'Calculating route...';
+                    }
+                    stopQuacking();
                 }
 
                 if (!ORS_API_KEY) {
@@ -735,6 +902,7 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
+                    stopQuacking();
                 }
             }
 
