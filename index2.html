@@ -8,8 +8,6 @@
     * Tailwind CSS is loaded from a CDN for simple utility-first styling.
     -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
         body {
             background-color: transparent;
@@ -21,8 +19,8 @@
 
         .widget-container {
             /*
-            * The background of the entire widget container is now transparent.
-            */
+             * The background of the entire widget container is now transparent.
+             */
             background-color: rgba(255, 255, 255, 0);
             position: fixed;
             top: 20px;
@@ -50,15 +48,15 @@
             height: 100%;
             width: 100%;
             /*
-            * The map's opacity is now set to 80%.
-            */
+             * The map's opacity is now set to 80%.
+             */
             opacity: 0.8;
         }
         
         /*
-        * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
-        * The !important flag is used to ensure it overrides the inline styles from the SDK.
-        */
+         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
+         * The !important flag is used to ensure it overrides the inline styles from the SDK.
+         */
         #map .kakao-maps-sdk,
         #map .View_logo,
         #map .View_copyright,
@@ -73,8 +71,8 @@
             transform: translateX(-50%);
             max-width: 90%;
             /*
-            * The background is now a solid white for full opacity.
-            */
+             * The background is now a solid white for full opacity.
+             */
             background-color: #fff;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -85,8 +83,8 @@
             font-weight: bold;
             color: #333;
             /*
-            * The opacity has been changed to 80%.
-            */
+             * The opacity has been changed to 80%.
+             */
             opacity: 0.8;
         }
 
@@ -109,18 +107,6 @@
         .wiggle-text {
             display: inline-block;
             animation: wiggle-up-down 1s ease-in-out infinite;
-        }
-
-        /*
-        * CSS for the moving green dots
-        */
-        .moving-dot {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            background-color: #00A86B; /* Green color */
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
         }
     </style>
     <!--
@@ -159,18 +145,14 @@
             let timerContainer = null;
             let isMapInitialized = false;
 
-            // Variables for the moving dots animation
-            let routePath = [];
-            let movingDots = [];
-            let dotAnimationInterval = null;
-            const dotCount = 5;
-            const dotSpeed = 100; // Milliseconds per step
-
             /**
-            * Initializes the map and fetches the destination from URL parameters.
-            */
+             * Initializes the map and fetches the destination from URL parameters.
+             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
+                /*
+                 * Display a loading message while the route is being calculated.
+                 */
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -190,24 +172,28 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
+                    // Set a default start location if no destination is provided.
                     startLocation = [37.5665, 126.9780];
                     setStartMarker();
                 }
             }
 
             /**
-            * Updates the start marker on the map with the latest position.
-            */
+             * Updates the start marker on the map with the latest position.
+             */
             function setStartMarker() {
-                if (!isMapInitialized || !startLocation) return;
+                if (!isMapInitialized) return;
 
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
 
+                // Changed the image source to a relative path to your local 'duck.png' file.
+                // This will work when the file is run from your local machine with the image in the same directory.
                 const imageSrc = 'duck.png';
-                const imageSize = new kakao.maps.Size(40, 40);
-                const imageOption = { offset: new kakao.maps.Point(20, 40) };
+                // Increased the size of the marker icon to make it more prominent.
+                const imageSize = new kakao.maps.Size(60, 60);
+                const imageOption = { offset: new kakao.maps.Point(30, 60) };
                 
                 const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
 
@@ -219,73 +205,18 @@
             }
 
             /**
-             * Sets the destination marker. The marker is a simple green circle.
+             * A new function to automatically adjust the map view to fit both the start and destination markers.
+             * This ensures both are always visible, which was the main problem.
              */
-            function setDestinationMarker() {
-                if (!isMapInitialized || !destinationLocation) return;
-
-                if (destinationMarker) {
-                    destinationMarker.setMap(null);
-                }
-                
-                // Using an SVG for a simple, scalable destination marker
-                const destinationSvg = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="10" fill="#00A86B" stroke="white" stroke-width="2"/>
-                        <circle cx="12" cy="12" r="4" fill="white"/>
-                    </svg>
-                `;
-
-                const markerContent = document.createElement('div');
-                markerContent.innerHTML = destinationSvg;
-
-                destinationMarker = new kakao.maps.CustomOverlay({
-                    position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                    content: markerContent,
-                    yAnchor: 1.05
-                });
-
-                destinationMarker.setMap(map);
-            }
-
-            /**
-             * Adjusts the map center and zoom level to ensure the route is visible
-             * and provides the highest possible detail.
-             * This function dynamically sets the zoom level based on the distance.
-             */
-            function updateMapZoomAndCenter() {
+            function updateMapViewToFitMarkers() {
                 if (!isMapInitialized || !startLocation || !destinationLocation) {
                     return;
                 }
                 
-                // Create a LatLngBounds object to hold the markers' positions
                 const bounds = new kakao.maps.LatLngBounds();
                 bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                 bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                
-                // Get the center of the bounds and pan the map to it
-                const center = bounds.getCenter();
-                map.panTo(center);
-
-                // Calculate the distance in meters
-                const distance = calculateDistance(startLocation, destinationLocation);
-
-                let level = 9; // Default zoom level for large distances
-                if (distance < 500) {
-                    level = 1;
-                } else if (distance < 1500) {
-                    level = 2;
-                } else if (distance < 5000) {
-                    level = 3;
-                } else if (distance < 10000) {
-                    level = 4;
-                } else if (distance < 20000) {
-                    level = 5;
-                } else if (distance < 50000) {
-                    level = 6;
-                }
-
-                map.setLevel(level);
+                map.setBounds(bounds);
             }
 
             /**
@@ -332,10 +263,10 @@
             }
 
             /**
-            * Tries to geocode an address using the OpenRouteService API.
-            * @param {string} query The address string to geocode.
-            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-            */
+             * Tries to geocode an address using the OpenRouteService API.
+             * @param {string} query The address string to geocode.
+             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+             */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -372,9 +303,9 @@
             }
 
             /**
-            * Processes the destination from the URL, geocodes it, and sets up the map.
-            * @param {string} destination The destination address from URL.
-            */
+             * Processes the destination from the URL, geocodes it, and sets up the map.
+             * @param {string} destination The destination address from URL.
+             */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -388,7 +319,8 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    let foundDestination = await tryGeocodeWithKakao(destination);
+                    let foundDestination = null;
+                    foundDestination = await tryGeocodeWithKakao(destination);
 
                     if (!foundDestination) {
                         foundDestination = await tryGeocodeWithORS(destination);
@@ -408,8 +340,24 @@
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
                         setStartMarker();
-                        setDestinationMarker();
+
+                        if (destinationMarker) {
+                            destinationMarker.setMap(null);
+                        }
                         
+                        // Create a custom overlay for the destination marker with a larger size.
+                        destinationMarker = new kakao.maps.CustomOverlay({
+                            map: map,
+                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                            content: '<div style="font-size: 60px; transform: translate(-50%, -100%);">📍</div>',
+                            yAnchor: 1
+                        });
+                        
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                        map.setBounds(bounds);
+
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
@@ -427,8 +375,8 @@
             }
 
             /**
-            * Starts real-time location tracking and updates the map accordingly.
-            */
+             * Starts real-time location tracking and updates the map accordingly.
+             */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -443,31 +391,12 @@
                         }
 
                         const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
-                        const distanceToDestination = calculateDistance(newPosition, destinationLocation);
-                        
-                        // Stop polling if we are very close to the destination
-                        if (distanceToDestination < 350) {
-                            // Clear all markers, polylines, and dots.
-                            if (startMarker) { startMarker.setMap(null); }
-                            if (destinationMarker) { destinationMarker.setMap(null); }
-                            if (routePolyline) { routePolyline.setMap(null); }
-                            clearInterval(dotAnimationInterval);
-                            movingDots.forEach(dot => dot.setMap(null));
-                            movingDots = [];
-                            // Display the happy message
-                            timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
-                            // Clear the location watch
-                            if (locationWatchId) {
-                                navigator.geolocation.clearWatch(locationWatchId);
-                                locationWatchId = null;
-                            }
-                            return;
-                        }
-                        
+
                         startLocation = newPosition;
                         setStartMarker();
-                        
-                        updateMapZoomAndCenter();
+
+                        // Update the map view to always fit both the start and destination markers.
+                        updateMapViewToFitMarkers();
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -491,11 +420,11 @@
             }
 
             /**
-            * Calculates the distance between two geographical coordinates using the Haversine formula.
-            * @param {number[]} coord1 - [latitude, longitude] of the first point.
-            * @param {number[]} coord2 - [latitude, longitude] of the second point.
-            * @returns {number} The distance in meters.
-            */
+             * Calculates the distance between two geographical coordinates using the Haversine formula.
+             * @param {number[]} coord1 - [latitude, longitude] of the first point.
+             * @param {number[]} coord2 - [latitude, longitude] of the second point.
+             * @returns {number} The distance in meters.
+             */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
@@ -509,10 +438,10 @@
             }
 
             /**
-            * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
-            * @param {string} encoded - The encoded polyline string.
-            * @returns {number[][]} The decoded array of coordinates.
-            */
+             * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
+             * @param {string} encoded - The encoded polyline string.
+             * @returns {number[][]} The decoded array of coordinates.
+             */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -544,50 +473,8 @@
             }
 
             /**
-             * Creates and animates the moving green dots along the route.
-             * @param {Array<kakao.maps.LatLng>} path - The path coordinates for the route.
+             * Fetches the route and travel time from the OpenRouteService API.
              */
-            function createMovingDots(path) {
-                // Clear any existing dots and animation
-                if (dotAnimationInterval) {
-                    clearInterval(dotAnimationInterval);
-                }
-                movingDots.forEach(dot => dot.setMap(null));
-                movingDots = [];
-
-                if (path.length === 0) return;
-
-                // Create the dots as custom overlays
-                for (let i = 0; i < dotCount; i++) {
-                    const dotElement = document.createElement('div');
-                    dotElement.className = 'moving-dot';
-                    
-                    const dotOverlay = new kakao.maps.CustomOverlay({
-                        position: path[0],
-                        content: dotElement,
-                        yAnchor: 0.5
-                    });
-                    movingDots.push({
-                        overlay: dotOverlay,
-                        positionIndex: 0,
-                        offset: i * Math.floor(path.length / dotCount)
-                    });
-                    dotOverlay.setMap(map);
-                }
-
-                // Animate the dots along the path
-                dotAnimationInterval = setInterval(() => {
-                    movingDots.forEach(dot => {
-                        dot.positionIndex = (dot.positionIndex + 1) % path.length;
-                        const currentPosition = path[dot.positionIndex];
-                        dot.overlay.setPosition(currentPosition);
-                    });
-                }, dotSpeed);
-            }
-
-            /**
-            * Fetches the route and travel time from the OpenRouteService API.
-            */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
@@ -600,8 +487,8 @@
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
                     if (routePolyline) {
-                        routePolyline.setMap(null);
-                        routePolyline = null;
+                         routePolyline.setMap(null);
+                         routePolyline = null;
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
@@ -653,33 +540,31 @@
                         const durationInSeconds = route.summary.duration;
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
-                        routePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
                         if (routePolyline) {
                             routePolyline.setMap(null);
                         }
-                        
-                        // Create the main green route line
+
                         routePolyline = new kakao.maps.Polyline({
-                            path: routePath,
+                            path: path,
                             strokeWeight: 5,
-                            strokeColor: '#00A86B', // Changed to green
+                            // Changed the line color to green.
+                            strokeColor: '#008000',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
 
                         routePolyline.setMap(map);
 
-                        // Call the function to create and animate the green dots
-                        createMovingDots(routePath);
-                        
                         const durationInMinutes = Math.round(durationInSeconds / 60);
 
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
                         
-                        updateMapZoomAndCenter();
+                        // The map bounds will be adjusted by updateMapViewToFitMarkers() in the polling function.
+                        // We do not need to set bounds here as it might conflict with the new logic.
 
                     } else {
                         if (timerContainer) {
