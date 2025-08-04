@@ -16,21 +16,20 @@
 
         .widget-container {
             /*
-             * Increased the container width for a better view.
+             * The background of the entire widget container is now semi-transparent.
              */
             background-color: rgba(255, 255, 255, 0.5);
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 250px; /* Increased width */
-            height: 300px; /* Increased height for more map space */
+            width: 150px;
+            height: 188px;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            position: relative; /* Added relative positioning for the timer */
         }
 
         .map-container {
@@ -105,7 +104,7 @@
 <body class="bg-gray-100">
 
     <div class="widget-container">
-        <div class="map-container">
+        <div class="map-container rounded-b-xl">
             <div id="map"></div>
             <div id="timer-container" class="timer-container"></div>
         </div>
@@ -119,7 +118,6 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 300;
-            const zoomPaddingFactor = 0.2; // This controls how much to "pad" the bounds, making the zoom tighter. 0.2 means 20% less padding on each side.
 
             let map = null;
             let startLocation = null;
@@ -132,9 +130,6 @@
             let locationWatchId = null;
             let timerContainer = null;
 
-            /**
-             * Initializes the map and fetches the destination from URL parameters.
-             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
 
@@ -160,39 +155,28 @@
                 }
             }
 
-            /**
-             * Sets the marker for the starting location (the duck).
-             * @param {Array<number>} newPosition - The new position [latitude, longitude] for the marker.
-             */
-            function setStartMarker(newPosition = startLocation) {
-                if (!newPosition || newPosition.length < 2) return;
-                
+            function setStartMarker() {
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
 
-                // Make sure 'duck.png' is in the same directory as this HTML file.
+                // Changed the image source to a relative path to your local 'duck.png' file.
+                // This will work when the file is run from your local machine with the image in the same directory.
                 const imageSrc = 'duck.png';
-                const imageSize = new kakao.maps.Size(40, 40);
-                const imageOption = { offset: new kakao.maps.Point(20, 40) };
+                // Resized the duck marker by half, as requested
+                const imageSize = new kakao.maps.Size(20, 20);
+                // Adjusted the offset to keep the marker's tip correctly positioned
+                const imageOption = { offset: new kakao.maps.Point(10, 20) };
                 
                 const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
 
                 startMarker = new kakao.maps.Marker({
                     map: map,
-                    position: new kakao.maps.LatLng(newPosition[0], newPosition[1]),
+                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                     image: markerImage
                 });
-
-                // Update the global start location
-                startLocation = newPosition;
             }
 
-            /**
-             * Geocodes an address using the Kakao REST API.
-             * @param {string} query - The address to geocode.
-             * @returns {Promise<Object|null>} - A promise that resolves to an object with lat/lng/label, or null on failure.
-             */
             async function tryGeocodeWithKakao(query) {
                 if (!KAKAO_API_KEY) {
                     throw new Error("Kakao REST API key is missing. Geocoding will not work.");
@@ -231,11 +215,6 @@
                 return null;
             }
 
-            /**
-             * Geocodes an address using the OpenRouteService API.
-             * @param {string} query - The address to geocode.
-             * @returns {Promise<Object|null>} - A promise that resolves to an object with lat/lng/label, or null on failure.
-             */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -271,10 +250,6 @@
                 return null;
             }
 
-            /**
-             * Processes the destination from the URL and starts the geolocation tracking.
-             * @param {string} destination - The destination address.
-             */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -319,19 +294,17 @@
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
-                        // Create initial bounds and pad them for a better view.
-                        const initialBounds = new kakao.maps.LatLngBounds();
-                        initialBounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        initialBounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        
-                        setMapBoundsWithPadding(initialBounds);
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                        map.setBounds(bounds);
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = 'Address not found. &#x1F6A8;';
                         }
                     }
                 } catch (error) {
@@ -342,32 +315,6 @@
                 }
             }
 
-            /**
-             * Adjusts the map bounds with a custom padding to avoid excessive empty space.
-             * @param {kakao.maps.LatLngBounds} bounds - The original bounds to adjust.
-             */
-            function setMapBoundsWithPadding(bounds) {
-                const sw = bounds.getSouthWest();
-                const ne = bounds.getNorthEast();
-
-                const latDiff = ne.getLat() - sw.getLat();
-                const lngDiff = ne.getLng() - sw.getLng();
-
-                const newSwLat = sw.getLat() + latDiff * zoomPaddingFactor;
-                const newSwLng = sw.getLng() + lngDiff * zoomPaddingFactor;
-                const newNeLat = ne.getLat() - latDiff * zoomPaddingFactor;
-                const newNeLng = ne.getLng() - lngDiff * zoomPaddingFactor;
-
-                const newBounds = new kakao.maps.LatLngBounds(
-                    new kakao.maps.LatLng(newSwLat, newSwLng),
-                    new kakao.maps.LatLng(newNeLat, newNeLng)
-                );
-                map.setBounds(newBounds);
-            }
-
-            /**
-             * Starts real-time geolocation tracking for the duck's position.
-             */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -381,10 +328,11 @@
                             lastKnownPosition = newPosition;
                         }
 
-                        // Update duck's position and marker
-                        setStartMarker(newPosition);
+                        const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
 
-                        // Recalculate route and bounds if duck has moved a significant distance
+                        startLocation = newPosition;
+                        setStartMarker();
+
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
 
@@ -406,12 +354,6 @@
                 );
             }
 
-            /**
-             * Calculates the distance between two coordinates in meters using the Haversine formula.
-             * @param {Array<number>} coord1 - [lat, lng] of the first point.
-             * @param {Array<number>} coord2 - [lat, lng] of the second point.
-             * @returns {number} - The distance in meters.
-             */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
@@ -424,11 +366,6 @@
                 return R * c;
             }
 
-            /**
-             * Decodes a Google Maps-style encoded polyline string into an array of LatLng coordinates.
-             * @param {string} encoded - The encoded polyline string.
-             * @returns {Array<Array<number>>} - An array of [lat, lng] coordinate pairs.
-             */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -459,9 +396,6 @@
                 return points;
             }
 
-            /**
-             * Fetches the route and estimated travel time from OpenRouteService and updates the map.
-             */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
@@ -469,10 +403,9 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
 
-                // If close to the destination, show a "completed" message and stop updates.
                 if (distance < 350) {
                     if (timerContainer) {
-                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                        timerContainer.innerHTML = `<b><span class="wiggle-text">&#x1F389;</span></b>`;
                     }
                     if (routePolyline) {
                          routePolyline.setMap(null);
@@ -550,11 +483,9 @@
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
 
-                        // Create bounds from the path and pad them for a tighter view.
-                        const pathBounds = new kakao.maps.LatLngBounds();
-                        path.forEach(latLng => pathBounds.extend(latLng));
-                        setMapBoundsWithPadding(pathBounds);
-
+                        const bounds = new kakao.maps.LatLngBounds();
+                        path.forEach(latLng => bounds.extend(latLng));
+                        map.setBounds(bounds);
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
@@ -573,7 +504,6 @@
                 }
             }
 
-            // Check if Kakao Maps API is loaded and initialize the app
             if (typeof kakao !== 'undefined' && kakao.maps) {
                 kakao.maps.load(function() {
                     init();
