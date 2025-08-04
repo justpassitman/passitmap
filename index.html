@@ -352,8 +352,9 @@
             /**
              * Updates the destination marker's visual state based on distance.
              * @param {string} state - The desired state ('default', 'gentle', 'very-fast', 'arrived').
+             * @param {number} duckScale - The current size of the duck marker.
              */
-            function updateDestinationMarkerState(state) {
+            function updateDestinationMarkerState(state, duckScale) {
                 if (!isMapInitialized || !destinationLocation) {
                     return;
                 }
@@ -363,16 +364,14 @@
                     destinationOverlay = null;
                 }
                 
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                const destinationScale = duckScale * destinationSizeMultiplier;
-                
                 let content = '';
                 let className = '';
                 let imgSrc = '';
+                let destinationScale = 0;
                 
                 if (state === 'default') {
                     // SVG for the classic navigation pin icon
+                    destinationScale = duckScale * destinationSizeMultiplier;
                     content = `
                         <div id="destination-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
                             <svg class="classic-marker-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
@@ -381,12 +380,16 @@
                         </div>
                     `;
                 } else if (state === 'gentle') {
+                    destinationScale = duckScale * destinationSizeMultiplier;
                     className = 'destination-marker-gentle';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
+                    destinationScale = duckScale * destinationSizeMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 } else if (state === 'arrived') {
+                    // The destination marker is now the same size as the duck.
+                    destinationScale = duckScale;
                     imgSrc = energeticDestinationImageSrc;
                 }
 
@@ -587,7 +590,10 @@
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
                         setStartMarker();
-                        updateDestinationMarkerState('default');
+                        
+                        const currentLevel = map.getLevel();
+                        const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                        updateDestinationMarkerState('default', duckScale);
                         
                         updateMapViewToFitMarkers();
 
@@ -596,7 +602,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = 'Address not found. �';
                         }
                     }
                 } catch (error) {
@@ -766,11 +772,13 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
                 // State machine for destination marker based on distance
                 if (distance < arrivalDistance) {
                     // State 1: Arrived at destination
-                    updateDestinationMarkerState('arrived');
+                    updateDestinationMarkerState('arrived', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
                     }
@@ -789,7 +797,7 @@
                     return;
                 } else if (distance < veryFastAnimationDistance) {
                     // State 2: Very close to destination (energetic animation)
-                    updateDestinationMarkerState('very-fast');
+                    updateDestinationMarkerState('very-fast', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
@@ -799,7 +807,7 @@
                     stopQuacking();
                 } else if (distance < gentleAnimationDistance) {
                     // State 3: Close to destination (gentle animation)
-                    updateDestinationMarkerState('gentle');
+                    updateDestinationMarkerState('gentle', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
@@ -809,7 +817,7 @@
                     stopQuacking();
                 } else {
                     // State 4: Far from destination (default marker)
-                    updateDestinationMarkerState('default');
+                    updateDestinationMarkerState('default', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
@@ -870,7 +878,7 @@
 
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 7,
+                            strokeWeight: 4, // Updated stroke weight for a thinner line
                             strokeColor: '#00B050',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
@@ -917,3 +925,4 @@
     </script>
 </body>
 </html>
+�
