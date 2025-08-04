@@ -129,10 +129,13 @@
             let routePolyline = null;
             let locationWatchId = null;
             let timerContainer = null;
+            let isMapInitialized = false;
 
+            /**
+             * Initializes the map and fetches the destination from URL parameters.
+             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
-
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
@@ -143,6 +146,7 @@
                     disableDoubleClickZoom: true
                 };
                 map = new kakao.maps.Map(mapContainer, mapOption);
+                isMapInitialized = true;
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -150,12 +154,18 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
+                    // Set a default start location if no destination is provided.
                     startLocation = [37.5665, 126.9780];
                     setStartMarker();
                 }
             }
 
+            /**
+             * Updates the start marker on the map with the latest position.
+             */
             function setStartMarker() {
+                if (!isMapInitialized) return;
+
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
@@ -175,6 +185,23 @@
                 });
             }
 
+            /**
+             * Smoothly pans the map to a new position.
+             * This function replaces the abrupt map center changes.
+             * @param {number[]} newPosition - The new [latitude, longitude] to pan to.
+             */
+            function updateMapViewSmoothly(newPosition) {
+                if (!isMapInitialized || !newPosition) return;
+                
+                const newLatLng = new kakao.maps.LatLng(newPosition[0], newPosition[1]);
+                map.panTo(newLatLng);
+            }
+
+            /**
+             * Tries to geocode an address using the Kakao REST API.
+             * @param {string} query The address string to geocode.
+             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+             */
             async function tryGeocodeWithKakao(query) {
                 if (!KAKAO_API_KEY) {
                     throw new Error("Kakao REST API key is missing. Geocoding will not work.");
@@ -213,6 +240,11 @@
                 return null;
             }
 
+            /**
+             * Tries to geocode an address using the OpenRouteService API.
+             * @param {string} query The address string to geocode.
+             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+             */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -248,6 +280,10 @@
                 return null;
             }
 
+            /**
+             * Processes the destination from the URL, geocodes it, and sets up the map.
+             * @param {string} destination The destination address from URL.
+             */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -302,7 +338,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -313,6 +349,9 @@
                 }
             }
 
+            /**
+             * Starts real-time location tracking and updates the map accordingly.
+             */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -330,6 +369,9 @@
 
                         startLocation = newPosition;
                         setStartMarker();
+
+                        // Smoothly pan the map to the new position
+                        updateMapViewSmoothly(newPosition);
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -352,6 +394,12 @@
                 );
             }
 
+            /**
+             * Calculates the distance between two geographical coordinates using the Haversine formula.
+             * @param {number[]} coord1 - [latitude, longitude] of the first point.
+             * @param {number[]} coord2 - [latitude, longitude] of the second point.
+             * @returns {number} The distance in meters.
+             */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
@@ -364,6 +412,11 @@
                 return R * c;
             }
 
+            /**
+             * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
+             * @param {string} encoded - The encoded polyline string.
+             * @returns {number[][]} The decoded array of coordinates.
+             */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -394,6 +447,9 @@
                 return points;
             }
 
+            /**
+             * Fetches the route and travel time from the OpenRouteService API.
+             */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
