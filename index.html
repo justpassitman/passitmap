@@ -2,13 +2,14 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>KakaoMap Navigation Widget</title>
+    <title>KakaoMap Bicycle Navigation Widget</title>
     <style>
         html, body {width:100%;height:100%;margin:0;padding:0;}
         #map {width:100%;height:calc(100% - 150px);}
         #form-container {padding: 10px; background-color: #f1f1f1;}
         input[type="text"] {width: 250px; padding: 5px; margin: 5px;}
         button {padding: 5px 10px; cursor: pointer;}
+        #route-info {padding: 10px; font-weight: bold;}
     </style>
 </head>
 <body>
@@ -16,90 +17,138 @@
         <p>
             <input type="text" id="start-point" placeholder="Enter starting point (e.g., 서울시청)">
             <input type="text" id="end-point" placeholder="Enter destination (e.g., 강남역)">
-            <button onclick="searchRoute()">Find Route</button>
+            <button onclick="getRoute()">Find Bicycle Route</button>
         </p>
     </div>
+    <div id="route-info"></div>
     <div id="map"></div>
     
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_JS_KEY&libraries=services"></script>
     
     <script>
-        // REPLACE 'YOUR_KAKAO_JS_KEY' with your actual JavaScript key
-        
+        // === IMPORTANT: Replace these with your actual keys ===
+        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72'; // Your JavaScript key for map display
+        const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63'; // Your REST API key for directions
+
         // Initialize the map
-        var mapContainer = document.getElementById('map');
-        var mapOption = { 
+        const mapContainer = document.getElementById('map');
+        const mapOption = { 
             center: new kakao.maps.LatLng(37.566826, 126.9786567), // Seoul City Hall
             level: 3 
         };
-        var map = new kakao.maps.Map(mapContainer, mapOption);
+        const map = new kakao.maps.Map(mapContainer, mapOption);
 
-        // Geocoder and Directions services
-        var geocoder = new kakao.maps.services.Geocoder();
-        var directionsService = new kakao.maps.RoadviewClient(); // This is the service for directions
-        var polyline;
-        var startMarker, endMarker;
+        // Geocoder and other variables
+        const geocoder = new kakao.maps.services.Geocoder();
+        let polyline, startMarker, endMarker;
 
         // Function to find the route
-        function searchRoute() {
-            var startAddr = document.getElementById('start-point').value;
-            var endAddr = document.getElementById('end-point').value;
+        async function getRoute() {
+            const startAddr = document.getElementById('start-point').value;
+            const endAddr = document.getElementById('end-point').value;
 
-            // First, geocode the start address
-            geocoder.addressSearch(startAddr, function(startResult, startStatus) {
-                if (startStatus === kakao.maps.services.Status.OK) {
-                    var startCoords = new kakao.maps.LatLng(startResult[0].y, startResult[0].x);
+            try {
+                // Geocode both addresses to get coordinates
+                const startCoords = await geocodeAddress(startAddr);
+                const endCoords = await geocodeAddress(endAddr);
 
-                    // Then, geocode the end address
-                    geocoder.addressSearch(endAddr, function(endResult, endStatus) {
-                        if (endStatus === kakao.maps.services.Status.OK) {
-                            var endCoords = new kakao.maps.LatLng(endResult[0].y, endResult[0].x);
+                // Clear previous route and markers
+                if (polyline) polyline.setMap(null);
+                if (startMarker) startMarker.setMap(null);
+                if (endMarker) endMarker.setMap(null);
 
-                            // Clear previous route and markers
-                            if (polyline) polyline.setMap(null);
-                            if (startMarker) startMarker.setMap(null);
-                            if (endMarker) endMarker.setMap(null);
+                // Display markers
+                startMarker = new kakao.maps.Marker({ map: map, position: startCoords });
+                endMarker = new kakao.maps.Marker({ map: map, position: endCoords });
 
-                            // Display markers
-                            startMarker = new kakao.maps.Marker({
-                                map: map,
-                                position: startCoords
-                            });
-                            endMarker = new kakao.maps.Marker({
-                                map: map,
-                                position: endCoords
-                            });
+                // Make the API call to get the bicycle route
+                const routeData = await fetchBicycleRoute(startCoords, endCoords);
 
-                            // Request a driving route
-                            directionsService.getRoadview(function(data){
-                                // This is a workaround since Kakao Maps does not have a simple driving directions service in the JavaScript SDK.
-                                // Instead, we can use an external Directions API, but for this example, we'll draw a simple line.
-                                // A more advanced implementation would require a REST API call to the Kakao Mobility Directions API.
-                                // The following simply draws a polyline between the two points.
-                                var linePath = [startCoords, endCoords];
-                                polyline = new kakao.maps.Polyline({
-                                    path: linePath,
-                                    strokeWeight: 5,
-                                    strokeColor: '#FF0000',
-                                    strokeOpacity: 0.7,
-                                    strokeStyle: 'solid'
-                                });
-                                polyline.setMap(map);
-                                
-                                // Adjust map view to fit the route
-                                var bounds = new kakao.maps.LatLngBounds();
-                                bounds.extend(startCoords);
-                                bounds.extend(endCoords);
-                                map.setBounds(bounds);
-                            }, startCoords);
-                        } else {
-                            alert('Destination address not found.');
-                        }
-                    });
-                } else {
-                    alert('Starting address not found.');
-                }
+                // Draw the route and display info
+                drawRoute(routeData);
+                displayRouteInfo(routeData);
+
+            } catch (error) {
+                console.error("Error finding route:", error);
+                alert(error.message);
+            }
+        }
+
+        // Helper function to geocode an address
+        function geocodeAddress(address) {
+            return new Promise((resolve, reject) => {
+                geocoder.addressSearch(address, function(result, status) {
+                    if (status === kakao.maps.services.Status.OK) {
+                        const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+                        resolve(coords);
+                    } else {
+                        reject(new Error(`Could not find coordinates for: ${address}`));
+                    }
+                });
             });
+        }
+
+        // Helper function to fetch the bicycle route from the REST API
+        async function fetchBicycleRoute(start, end) {
+            const url = 'https://apis-navi.kakaomobility.com/v1/directions';
+            const headers = { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` };
+            const body = new URLSearchParams({
+                origin: `${start.getLng()},${start.getLat()}`,
+                destination: `${end.getLng()},${end.getLat()}`,
+                // The 'bycicle' profile is what we need for a cycling route
+                car_fuel: 'bycicle' 
+            });
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: body
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
+            }
+
+            return response.json();
+        }
+
+        // Helper function to draw the polyline on the map
+        function drawRoute(routeData) {
+            const lines = routeData.routes[0].sections.flatMap(section => 
+                section.roads.flatMap(road => 
+                    road.vertexes.map((_, i, arr) => {
+                        if (i % 2 === 0 && i < arr.length - 1) {
+                            return new kakao.maps.LatLng(arr[i+1], arr[i]);
+                        }
+                    }).filter(Boolean)
+                )
+            );
+
+            polyline = new kakao.maps.Polyline({
+                path: lines,
+                strokeWeight: 5,
+                strokeColor: '#0055ff', // Blue for bicycle route
+                strokeOpacity: 0.7,
+                strokeStyle: 'solid'
+            });
+
+            polyline.setMap(map);
+
+            // Adjust the map bounds to fit the route
+            const bounds = new kakao.maps.LatLngBounds();
+            lines.forEach(point => bounds.extend(point));
+            map.setBounds(bounds);
+        }
+
+        // Helper function to display route information
+        function displayRouteInfo(routeData) {
+            const route = routeData.routes[0];
+            const distance = (route.summary.distance / 1000).toFixed(1); // km
+            const duration = Math.round(route.summary.duration / 60); // minutes
+
+            document.getElementById('route-info').innerHTML = 
+                `Bicycle Route: ${distance} km, approx. ${duration} mins.`;
         }
     </script>
 </body>
