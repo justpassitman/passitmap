@@ -148,8 +148,8 @@
             // Use the provided duck.png file for the current position marker.
             const duckImageSrc = 'duck.png';
 
-            // A base size for markers that will be scaled dynamically
-            const baseMarkerSize = 40;
+            // A base size for the duck marker, now divided by 3 as requested.
+            const baseMarkerSize = 40 / 3;
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
@@ -191,8 +191,8 @@
             }
 
             /**
-            * Updates the size of the markers based on the map's current zoom level.
-            * This ensures the duck marker is visually "constant" relative to the screen, not the map scale.
+            * Updates the size of the duck marker based on the map's current zoom level.
+            * This ensures the marker is visually "constant" relative to the screen.
             * The destination marker is the default one and doesn't require dynamic sizing.
             * @param {number} level The current zoom level of the map.
             */
@@ -223,6 +223,7 @@
                 }
                 
                 const currentLevel = map.getLevel();
+                // Dynamically size the marker based on the new, smaller base size.
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
                 
                 // Use the provided duck.png and size it dynamically.
