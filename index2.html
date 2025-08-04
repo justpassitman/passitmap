@@ -4,8 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duck Delivery Livestream Widget</title>
-    <!-- Tailwind CSS is loaded from a CDN for simple utility-first styling. -->
+    <!--
+    * Tailwind CSS is loaded from a CDN for simple utility-first styling.
+    -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
         body {
             background-color: transparent;
@@ -16,7 +20,9 @@
         }
 
         .widget-container {
-            /* The background of the entire widget container is now transparent. */
+            /*
+            * The background of the entire widget container is now transparent.
+            */
             background-color: rgba(255, 255, 255, 0);
             position: fixed;
             top: 20px;
@@ -43,11 +49,16 @@
         #map {
             height: 100%;
             width: 100%;
-            /* The map's opacity is now set to 80%. */
+            /*
+            * The map's opacity is now set to 80%.
+            */
             opacity: 0.8;
         }
         
-        /* This CSS rule hides the Kakao Maps attribution text and logo. */
+        /*
+        * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
+        * The !important flag is used to ensure it overrides the inline styles from the SDK.
+        */
         #map .kakao-maps-sdk,
         #map .View_logo,
         #map .View_copyright,
@@ -61,7 +72,9 @@
             left: 50%;
             transform: translateX(-50%);
             max-width: 90%;
-            /* The background is now a solid white for full opacity. */
+            /*
+            * The background is now a solid white for full opacity.
+            */
             background-color: #fff;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -71,7 +84,9 @@
             font-size: 100%;
             font-weight: bold;
             color: #333;
-            /* The opacity has been changed to 80%. */
+            /*
+            * The opacity has been changed to 80%.
+            */
             opacity: 0.8;
         }
 
@@ -97,19 +112,21 @@
         }
 
         /*
-         * New CSS for the animated green dots.
-         * The dot will be a small, green circle.
-         */
+        * CSS for the moving green dots
+        */
         .moving-dot {
+            position: absolute;
             width: 8px;
             height: 8px;
-            background-color: #00C853; /* A vibrant green color */
+            background-color: #00A86B; /* Green color */
             border-radius: 50%;
-            border: 1px solid #fff;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            transform: translate(-50%, -50%);
         }
     </style>
-    <!-- Kakao JavaScript API key provided by the user. -->
+    <!--
+    * Kakao JavaScript API key provided by the user.
+    * The `libraries=services` part is essential for geocoding.
+    -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
 <body class="bg-gray-100">
@@ -142,21 +159,18 @@
             let timerContainer = null;
             let isMapInitialized = false;
 
-            // Variables for the animated dots
-            const numberOfDots = 6;
-            const cycleDuration = 3000; // 3 seconds in milliseconds
-            let dotMarkers = [];
-            let dotPositions = [];
-            let animationFrameId = null;
+            // Variables for the moving dots animation
+            let routePath = [];
+            let movingDots = [];
+            let dotAnimationInterval = null;
+            const dotCount = 5;
+            const dotSpeed = 100; // Milliseconds per step
 
             /**
-             * Initializes the map and fetches the destination from URL parameters.
-             */
+            * Initializes the map and fetches the destination from URL parameters.
+            */
             function init() {
                 timerContainer = document.getElementById('timer-container');
-                /*
-                 * Display a loading message while the route is being calculated.
-                 */
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -176,24 +190,21 @@
                 if (destination) {
                     processDestination(destination);
                 } else {
-                    // Set a default start location if no destination is provided.
                     startLocation = [37.5665, 126.9780];
                     setStartMarker();
                 }
             }
 
             /**
-             * Updates the start marker on the map with the latest position.
-             */
+            * Updates the start marker on the map with the latest position.
+            */
             function setStartMarker() {
-                if (!isMapInitialized) return;
+                if (!isMapInitialized || !startLocation) return;
 
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
 
-                // Changed the image source to a relative path to your local 'duck.png' file.
-                // This will work when the file is run from your local machine with the image in the same directory.
                 const imageSrc = 'duck.png';
                 const imageSize = new kakao.maps.Size(40, 40);
                 const imageOption = { offset: new kakao.maps.Point(20, 40) };
@@ -208,17 +219,73 @@
             }
 
             /**
-             * A new function to automatically adjust the map view to fit both the start and destination markers.
+             * Sets the destination marker. The marker is a simple green circle.
              */
-            function updateMapViewToFitMarkers() {
+            function setDestinationMarker() {
+                if (!isMapInitialized || !destinationLocation) return;
+
+                if (destinationMarker) {
+                    destinationMarker.setMap(null);
+                }
+                
+                // Using an SVG for a simple, scalable destination marker
+                const destinationSvg = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="#00A86B" stroke="white" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="4" fill="white"/>
+                    </svg>
+                `;
+
+                const markerContent = document.createElement('div');
+                markerContent.innerHTML = destinationSvg;
+
+                destinationMarker = new kakao.maps.CustomOverlay({
+                    position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                    content: markerContent,
+                    yAnchor: 1.05
+                });
+
+                destinationMarker.setMap(map);
+            }
+
+            /**
+             * Adjusts the map center and zoom level to ensure the route is visible
+             * and provides the highest possible detail.
+             * This function dynamically sets the zoom level based on the distance.
+             */
+            function updateMapZoomAndCenter() {
                 if (!isMapInitialized || !startLocation || !destinationLocation) {
                     return;
                 }
                 
+                // Create a LatLngBounds object to hold the markers' positions
                 const bounds = new kakao.maps.LatLngBounds();
                 bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                 bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                map.setBounds(bounds);
+                
+                // Get the center of the bounds and pan the map to it
+                const center = bounds.getCenter();
+                map.panTo(center);
+
+                // Calculate the distance in meters
+                const distance = calculateDistance(startLocation, destinationLocation);
+
+                let level = 9; // Default zoom level for large distances
+                if (distance < 500) {
+                    level = 1;
+                } else if (distance < 1500) {
+                    level = 2;
+                } else if (distance < 5000) {
+                    level = 3;
+                } else if (distance < 10000) {
+                    level = 4;
+                } else if (distance < 20000) {
+                    level = 5;
+                } else if (distance < 50000) {
+                    level = 6;
+                }
+
+                map.setLevel(level);
             }
 
             /**
@@ -265,10 +332,10 @@
             }
 
             /**
-             * Tries to geocode an address using the OpenRouteService API.
-             * @param {string} query The address string to geocode.
-             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-             */
+            * Tries to geocode an address using the OpenRouteService API.
+            * @param {string} query The address string to geocode.
+            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+            */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -305,9 +372,9 @@
             }
 
             /**
-             * Processes the destination from the URL, geocodes it, and sets up the map.
-             * @param {string} destination The destination address from URL.
-             */
+            * Processes the destination from the URL, geocodes it, and sets up the map.
+            * @param {string} destination The destination address from URL.
+            */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -321,8 +388,7 @@
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
-                    let foundDestination = null;
-                    foundDestination = await tryGeocodeWithKakao(destination);
+                    let foundDestination = await tryGeocodeWithKakao(destination);
 
                     if (!foundDestination) {
                         foundDestination = await tryGeocodeWithORS(destination);
@@ -342,21 +408,8 @@
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
                         setStartMarker();
-
-                        if (destinationMarker) {
-                            destinationMarker.setMap(null);
-                        }
+                        setDestinationMarker();
                         
-                        destinationMarker = new kakao.maps.Marker({
-                            map: map,
-                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
-                        });
-                        
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        map.setBounds(bounds);
-
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
@@ -374,8 +427,8 @@
             }
 
             /**
-             * Starts real-time location tracking and updates the map accordingly.
-             */
+            * Starts real-time location tracking and updates the map accordingly.
+            */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -390,12 +443,31 @@
                         }
 
                         const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
-
+                        const distanceToDestination = calculateDistance(newPosition, destinationLocation);
+                        
+                        // Stop polling if we are very close to the destination
+                        if (distanceToDestination < 350) {
+                            // Clear all markers, polylines, and dots.
+                            if (startMarker) { startMarker.setMap(null); }
+                            if (destinationMarker) { destinationMarker.setMap(null); }
+                            if (routePolyline) { routePolyline.setMap(null); }
+                            clearInterval(dotAnimationInterval);
+                            movingDots.forEach(dot => dot.setMap(null));
+                            movingDots = [];
+                            // Display the happy message
+                            timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                            // Clear the location watch
+                            if (locationWatchId) {
+                                navigator.geolocation.clearWatch(locationWatchId);
+                                locationWatchId = null;
+                            }
+                            return;
+                        }
+                        
                         startLocation = newPosition;
                         setStartMarker();
-
-                        // Update the map view to always fit both the start and destination markers.
-                        updateMapViewToFitMarkers();
+                        
+                        updateMapZoomAndCenter();
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -419,11 +491,11 @@
             }
 
             /**
-             * Calculates the distance between two geographical coordinates using the Haversine formula.
-             * @param {number[]} coord1 - [latitude, longitude] of the first point.
-             * @param {number[]} coord2 - [latitude, longitude] of the second point.
-             * @returns {number} The distance in meters.
-             */
+            * Calculates the distance between two geographical coordinates using the Haversine formula.
+            * @param {number[]} coord1 - [latitude, longitude] of the first point.
+            * @param {number[]} coord2 - [latitude, longitude] of the second point.
+            * @returns {number} The distance in meters.
+            */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
@@ -437,10 +509,10 @@
             }
 
             /**
-             * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
-             * @param {string} encoded - The encoded polyline string.
-             * @returns {number[][]} The decoded array of coordinates.
-             */
+            * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
+            * @param {string} encoded - The encoded polyline string.
+            * @returns {number[][]} The decoded array of coordinates.
+            */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -472,35 +544,50 @@
             }
 
             /**
-             * Updates the position of the animated dots along the route polyline.
+             * Creates and animates the moving green dots along the route.
+             * @param {Array<kakao.maps.LatLng>} path - The path coordinates for the route.
              */
-            function updateDots() {
-                const pathLength = routePolyline.getPath().getLength();
-                if (pathLength === 0) {
-                    cancelAnimationFrame(animationFrameId);
-                    return;
+            function createMovingDots(path) {
+                // Clear any existing dots and animation
+                if (dotAnimationInterval) {
+                    clearInterval(dotAnimationInterval);
+                }
+                movingDots.forEach(dot => dot.setMap(null));
+                movingDots = [];
+
+                if (path.length === 0) return;
+
+                // Create the dots as custom overlays
+                for (let i = 0; i < dotCount; i++) {
+                    const dotElement = document.createElement('div');
+                    dotElement.className = 'moving-dot';
+                    
+                    const dotOverlay = new kakao.maps.CustomOverlay({
+                        position: path[0],
+                        content: dotElement,
+                        yAnchor: 0.5
+                    });
+                    movingDots.push({
+                        overlay: dotOverlay,
+                        positionIndex: 0,
+                        offset: i * Math.floor(path.length / dotCount)
+                    });
+                    dotOverlay.setMap(map);
                 }
 
-                // Calculate the distance each dot needs to travel per frame to complete a cycle in 3 seconds.
-                // Assuming a ~60fps refresh rate (1000ms / 16.67ms per frame).
-                const dotSpeed = (pathLength - 1) / (cycleDuration / 16.67);
-
-                for (let i = 0; i < numberOfDots; i++) {
-                    // Update the dot's position index along the path.
-                    // The dots are staggered along the path.
-                    dotPositions[i] = (dotPositions[i] + dotSpeed) % pathLength;
-
-                    // Get the new coordinates from the polyline's path using the updated position index.
-                    const newPosition = routePolyline.getPath().getAt(Math.floor(dotPositions[i]));
-                    dotMarkers[i].setPosition(newPosition);
-                }
-
-                animationFrameId = requestAnimationFrame(updateDots);
+                // Animate the dots along the path
+                dotAnimationInterval = setInterval(() => {
+                    movingDots.forEach(dot => {
+                        dot.positionIndex = (dot.positionIndex + 1) % path.length;
+                        const currentPosition = path[dot.positionIndex];
+                        dot.overlay.setPosition(currentPosition);
+                    });
+                }, dotSpeed);
             }
 
             /**
-             * Fetches the route and travel time from the OpenRouteService API.
-             */
+            * Fetches the route and travel time from the OpenRouteService API.
+            */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
@@ -515,11 +602,6 @@
                     if (routePolyline) {
                         routePolyline.setMap(null);
                         routePolyline = null;
-                        // Stop the dot animation
-                        cancelAnimationFrame(animationFrameId);
-                        // Remove all dot markers from the map
-                        dotMarkers.forEach(marker => marker.setMap(null));
-                        dotMarkers = [];
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
@@ -571,53 +653,34 @@
                         const durationInSeconds = route.summary.duration;
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
-                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+                        routePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
-                        // If a previous polyline exists, remove it.
                         if (routePolyline) {
                             routePolyline.setMap(null);
-                            // Stop the dot animation and remove old dots
-                            cancelAnimationFrame(animationFrameId);
-                            dotMarkers.forEach(marker => marker.setMap(null));
-                            dotMarkers = [];
                         }
-
-                        // Create the "greener line" as requested.
+                        
+                        // Create the main green route line
                         routePolyline = new kakao.maps.Polyline({
-                            path: path,
+                            path: routePath,
                             strokeWeight: 5,
-                            strokeColor: '#00C853', // A darker, greener line.
+                            strokeColor: '#00A86B', // Changed to green
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
 
                         routePolyline.setMap(map);
 
-                        // Initialize the dots for the animation
-                        for (let i = 0; i < numberOfDots; i++) {
-                            // Create a custom overlay for each dot
-                            const dotDiv = document.createElement('div');
-                            dotDiv.className = 'moving-dot';
-                            const dotOverlay = new kakao.maps.CustomOverlay({
-                                map: map,
-                                position: path[0],
-                                content: dotDiv,
-                                zIndex: 100
-                            });
-                            dotMarkers.push(dotOverlay);
-                            // Stagger the initial position of each dot along the path
-                            dotPositions.push(i * (path.length / numberOfDots));
-                        }
-
-                        // Start the animation loop for the dots
-                        animationFrameId = requestAnimationFrame(updateDots);
-
+                        // Call the function to create and animate the green dots
+                        createMovingDots(routePath);
+                        
                         const durationInMinutes = Math.round(durationInSeconds / 60);
 
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
                         
+                        updateMapZoomAndCenter();
+
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
