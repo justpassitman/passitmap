@@ -1,35 +1,322 @@
-async function fetchBicycleRoute(start, end) {
-    const url = 'https://apis-navi.kakaomobility.com/v1/directions';
-    const headers = {
-        'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
-        // CHANGE 1: Set the correct Content-Type header for a JSON payload
-        'Content-Type': 'application/json'
-    };
-    // CHANGE 2: Create a JSON object for the request body
-    const body = {
-        origin: {
-            x: start.getLng(),
-            y: start.getLat()
-        },
-        destination: {
-            x: end.getLng(),
-            y: end.getLat()
-        },
-        // 'bicycle' is not a valid car_fuel option; it should be used with the 'bicycle_path' query parameter
-        // car_fuel parameter is not supported for v1/directions API. It's for the old T-map API
-        // For bicycle routes, you need to specify the 'priority' as 'BICYCLE' in the request body
-        priority: 'BICYCLE'
-    };
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Delivery Widget (KakaoMap)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: transparent;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        // CHANGE 3: Stringify the body object to send it as JSON
-        body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
-    }
-    return response.json();
-}
+        .widget-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 150px;
+            height: 188px;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .map-container {
+            flex-grow: 1;
+            padding: 0;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .timer-container {
+            position: absolute;
+            bottom: 0.75rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 90%;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1001;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 100%;
+            font-weight: bold;
+            color: #333;
+        }
+
+        @keyframes wiggle-up-down {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .wiggle-text {
+            display: inline-block;
+            animation: wiggle-up-down 1s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div class="widget-container">
+        <div class="map-container rounded-b-xl">
+            <div id="map"></div>
+            <div id="timer-container" class="timer-container"></div>
+        </div>
+    </div>
+    
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services,clusterer,drawing"></script>
+
+    <script>
+        window.kakao.maps.load(() => {
+            const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
+            const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
+            const MIN_DISTANCE_FOR_API_CALL = 350;
+
+            let map = null;
+            let userMarker = null;
+            let destinationMarker = null;
+            let polyline = null;
+            let destinationCoords = null;
+            let lastApiCallPosition = null;
+            let locationWatchId = null;
+            let timerContainer = null;
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
+            
+            const DEFAULT_POSITION = new kakao.maps.LatLng(37.566826, 126.9786567);
+
+            function init() {
+                timerContainer = document.getElementById('timer-container');
+                const mapContainer = document.getElementById('map');
+                
+                if (mapContainer) {
+                    map = new kakao.maps.Map(mapContainer, {
+                        center: DEFAULT_POSITION,
+                        level: 3,
+                        disableDoubleClick: true,
+                        draggable: true,
+                        scrollwheel: false,
+                        keyboardShortcuts: false
+                    });
+                    
+                    kakao.maps.event.trigger(map, 'resize');
+
+                    geocodeAddress(destinationAddress).then(coords => {
+                        destinationCoords = coords;
+                        destinationMarker = new kakao.maps.Marker({
+                            map: map,
+                            position: destinationCoords
+                        });
+                        startLiveTracking();
+                    }).catch(error => {
+                        timerContainer.innerHTML = 'Destination not found. 🤯';
+                        console.error("Geocoding Error:", error);
+                    });
+                } else {
+                    console.error("Map container element not found. Make sure an element with id='map' exists.");
+                }
+            }
+            
+            function startLiveTracking() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        updatePosition(pos);
+                        locationWatchId = navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
+                            enableHighAccuracy: true,
+                            maximumAge: 0
+                        });
+                    }, handleGeolocationError, {
+                        enableHighAccuracy: true,
+                        maximumAge: 0
+                    });
+                } else {
+                    timerContainer.innerHTML = "GPS not supported. Using default location.";
+                    updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
+                }
+            }
+            
+            async function updatePosition(position) {
+                const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                
+                if (!userMarker) {
+                    userMarker = new kakao.maps.Marker({
+                        map: map,
+                        image: new kakao.maps.MarkerImage(
+                            'duck.png',
+                            new kakao.maps.Size(38, 38),
+                            { offset: new kakao.maps.Point(19, 38) }
+                        ),
+                        position: currentCoords
+                    });
+                } else {
+                    userMarker.setPosition(currentCoords);
+                }
+                map.setCenter(currentCoords);
+
+                if (!destinationCoords) {
+                    timerContainer.innerHTML = "Destination not found. 🤯";
+                    return;
+                }
+
+                const distanceToDest = getDistance(currentCoords, destinationCoords);
+                if (distanceToDest < 350) {
+                    timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                    if (polyline) polyline.setMap(null);
+                    navigator.geolocation.clearWatch(locationWatchId);
+                    return;
+                }
+
+                if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
+                    lastApiCallPosition = currentCoords;
+                    try {
+                        const routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
+                        drawRoute(routeData);
+                        displayRouteInfo(routeData);
+                    } catch (error) {
+                        console.error("Error fetching route:", error);
+                        timerContainer.innerHTML = `🤯 Route API failed. Try again.`;
+                    }
+                }
+            }
+
+            function handleGeolocationError(error) {
+                timerContainer.innerHTML = "GPS error. 🤯";
+                console.error("Geolocation API Error:", error);
+                updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
+            }
+
+            function geocodeAddress(address) {
+                return new Promise((resolve, reject) => {
+                    const geocoder = new kakao.maps.services.Geocoder();
+                    
+                    const searchAndResolve = (query, onFail) => {
+                        geocoder.addressSearch(query, (result, status) => {
+                            if (status === kakao.maps.services.Status.OK && result.length > 0) {
+                                resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
+                            } else {
+                                onFail();
+                            }
+                        });
+                    };
+                    
+                    searchAndResolve(address, () => {
+                        const simplifiedAddress1 = address.replace(/\s\d+호$/, '');
+                        if (simplifiedAddress1 !== address) {
+                            searchAndResolve(simplifiedAddress1, () => {
+                                const simplifiedAddress2 = simplifiedAddress1.replace(/\s\d+-\d+번지$/, '');
+                                if (simplifiedAddress2 !== simplifiedAddress1) {
+                                    searchAndResolve(simplifiedAddress2, () => reject(new Error('All geocoding attempts failed.')));
+                                } else {
+                                    reject(new Error('Geocoding attempts failed after simplification 1.'));
+                                }
+                            });
+                        } else {
+                            reject(new Error('Geocoding failed with the initial address.'));
+                        }
+                    });
+                });
+            }
+            
+            function getDistance(p1, p2) {
+                const R = 6371e3;
+                const φ1 = p1.getLat() * Math.PI/180;
+                const φ2 = p2.getLat() * Math.PI/180;
+                const Δφ = (p2.getLat()-p1.getLat()) * Math.PI/180;
+                const Δλ = (p2.getLng()-p1.getLng()) * Math.PI/180;
+                const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                          Math.cos(φ1) * Math.cos(φ2) *
+                          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                return R * c;
+            }
+
+            // --- The corrected fetchBicycleRoute function starts here ---
+            async function fetchBicycleRoute(start, end) {
+                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
+                const headers = {
+                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
+                    'Content-Type': 'application/json'
+                };
+                const body = {
+                    origin: {
+                        x: start.getLng(),
+                        y: start.getLat()
+                    },
+                    destination: {
+                        x: end.getLng(),
+                        y: end.getLat()
+                    },
+                    priority: 'BICYCLE' // Correct parameter for bicycle route
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
+                }
+                return response.json();
+            }
+            // --- The corrected fetchBicycleRoute function ends here ---
+
+            function drawRoute(routeData) {
+                if (polyline) polyline.setMap(null);
+
+                if (!routeData || !routeData.routes || routeData.routes.length === 0) {
+                    timerContainer.innerHTML = `⚠️ No route found.`;
+                    console.warn("Kakao Mobility API returned no route data.");
+                    return;
+                }
+
+                const lines = routeData.routes[0].sections.flatMap(section => 
+                    section.roads.flatMap(road => 
+                        road.vertexes.map((_, i, arr) => {
+                            if (i % 2 === 0 && i < arr.length - 1) {
+                                return new kakao.maps.LatLng(arr[i+1], arr[i]);
+                            }
+                        }).filter(Boolean)
+                    )
+                );
+
+                polyline = new kakao.maps.Polyline({
+                    path: lines,
+                    strokeWeight: 5,
+                    strokeColor: '#0055ff',
+                    strokeOpacity: 0.7,
+                    strokeStyle: 'solid'
+                });
+                polyline.setMap(map);
+            }
+
+            function displayRouteInfo(routeData) {
+                const route = routeData.routes[0];
+                const duration = Math.round(route.summary.duration / 60);
+                timerContainer.innerHTML = `<b>${duration} min</b>`;
+            }
+            
+            // === THIS IS THE KEY FIX ===
+            // Delay the initialization slightly to ensure the map container has been rendered.
+            setTimeout(init, 100);
+        });
+    </script>
+</body>
+</html>
