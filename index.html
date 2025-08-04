@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duck Delivery Widget</title>
+    <title>Duck Delivery Livestream Widget</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            background-color: transparent; 
+            background-color: transparent;
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
             overflow: hidden;
         }
-        
+
         .widget-container {
             position: fixed;
             top: 20px;
@@ -41,9 +41,17 @@
             height: 100%;
             width: 100%;
         }
+        
+        /*
+         * This CSS rule hides the Kakao Maps attribution text at the bottom-left of the map.
+         * The !important flag is used to ensure it overrides the inline styles from the SDK.
+         */
+        #map .kakao-maps-sdk {
+            display: none !important;
+        }
 
         .timer-container {
-            position: absolute; 
+            position: absolute;
             bottom: 0.75rem;
             left: 50%;
             transform: translateX(-50%);
@@ -57,6 +65,13 @@
             font-size: 100%;
             font-weight: bold;
             color: #333;
+        }
+
+        .error-message {
+            color: red;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
         }
 
         @keyframes wiggle-up-down {
@@ -73,7 +88,11 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!--
+        Kakao JavaScript API key provided by the user.
+        The `libraries=services` part is essential for geocoding.
+    -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -83,18 +102,16 @@
             <div id="timer-container" class="timer-container"></div>
         </div>
     </div>
-    
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+
     <script>
         (function() {
-            // Updated API keys as provided by the user.
+            // OpenRouteService API key from the user's original code.
             const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
+            
+            // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
-            
-            // The minimum distance in meters the user must travel before a new API call is made.
             const minDistanceForApiCall = 300;
-            
+
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
@@ -102,22 +119,23 @@
             let lastApiCallPosition = null;
             let startMarker = null;
             let destinationMarker = null;
-            let currentRouteLayer = null;
+            let routePolyline = null;
             let locationWatchId = null;
-            let destinationName = null;
             let timerContainer = null;
 
             function init() {
-                map = L.map('map', {
-                    zoomControl: false,
-                    attributionControl: false
-                }).setView([0, 0], 2);
-                
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    subdomains: 'abcd'
-                }).addTo(map);
-
                 timerContainer = document.getElementById('timer-container');
+
+                const mapContainer = document.getElementById('map');
+                const mapOption = {
+                    center: new kakao.maps.LatLng(37.5665, 126.9780),
+                    level: 9,
+                    draggable: false,
+                    scrollwheel: false,
+                    disableDoubleClick: true,
+                    disableDoubleClickZoom: true
+                };
+                map = new kakao.maps.Map(mapContainer, mapOption);
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -126,40 +144,35 @@
                     processDestination(destination);
                 } else {
                     startLocation = [37.5665, 126.9780];
-                    map.setView(startLocation, 12);
+                    setStartMarker();
                 }
             }
 
-            function onLocationSuccess(position) {
-                startLocation = [position.coords.latitude, position.coords.longitude];
-                setStartMarker();
-                map.setView(startLocation, 12);
-            }
-
-            function onLocationError(error) {
-                console.error("Geolocation error:", error);
-                startLocation = [37.5665, 126.9780];
-                setStartMarker();
-                map.setView(startLocation, 12);
-            }
-
             function setStartMarker() {
-                 const duckIcon = L.icon({
-                     iconUrl: 'duck.png',
-                     iconSize: [38, 38],
-                     iconAnchor: [19, 38],
-                     popupAnchor: [0, -38]
-                 });
+                if (startMarker) {
+                    startMarker.setMap(null);
+                }
+
+                // Changed the image source to a relative path to your local 'duck.png' file.
+                // This will work when the file is run from your local machine with the image in the same directory.
+                const imageSrc = 'duck.png';
+                const imageSize = new kakao.maps.Size(40, 40);
+                const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
-                 if (startMarker) {
-                     startMarker.setLatLng(startLocation);
-                 } else {
-                     startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
-                         .bindPopup("Your current location");
-                 }
+                const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+
+                startMarker = new kakao.maps.Marker({
+                    map: map,
+                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
+                    image: markerImage
+                });
             }
 
             async function tryGeocodeWithKakao(query) {
+                if (!KAKAO_API_KEY) {
+                    throw new Error("Kakao REST API key is missing. Geocoding will not work.");
+                }
+
                 const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
                 try {
                     const kakaoResponse = await fetch(kakaoGeocodeUrl, {
@@ -171,6 +184,9 @@
 
                     if (!kakaoResponse.ok) {
                         console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
+                        if (kakaoResponse.status === 401 || kakaoResponse.status === 403) {
+                            throw new Error("Invalid Kakao REST API key. Please check your key.");
+                        }
                         return null;
                     }
 
@@ -178,22 +194,27 @@
                     if (kakaoData.documents && kakaoData.documents.length > 0) {
                         const firstResult = kakaoData.documents[0];
                         return {
-                            lat: firstResult.y,
-                            lng: firstResult.x,
+                            lat: parseFloat(firstResult.y),
+                            lng: parseFloat(firstResult.x),
                             label: firstResult.address_name
                         };
                     }
                 } catch (error) {
                     console.error("Kakao Geocoding failed:", error);
+                    throw error;
                 }
                 return null;
             }
 
             async function tryGeocodeWithORS(query) {
+                if (!ORS_API_KEY) {
+                    throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
+                }
+                
                 try {
                     const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
-                    
+
                     if (!geocodeResponse.ok) {
                         if (geocodeResponse.status === 403) {
                             console.error("ORS Geocoding failed: Invalid API key.");
@@ -201,9 +222,9 @@
                         }
                         return null;
                     }
-                    
+
                     const geocodeData = await geocodeResponse.json();
-                    
+
                     if (geocodeData.features.length > 0) {
                         const firstResult = geocodeData.features[0];
                         const destPoint = firstResult.geometry.coordinates;
@@ -232,18 +253,11 @@
                 try {
                     const position = await getUserLocation();
                     startLocation = [position.coords.latitude, position.coords.longitude];
-                    
-                    let foundDestination = null;
 
-                    // Attempt 1: Try with Kakao API for better Korean address support
-                    console.log("Attempting geocode with Kakao API...");
+                    let foundDestination = null;
                     foundDestination = await tryGeocodeWithKakao(destination);
 
-                    if (foundDestination) {
-                        console.log("Kakao API found a match.");
-                    } else {
-                        console.log("Kakao API failed. Falling back to OpenRouteService...");
-                        // Fallback to existing logic with OpenRouteService
+                    if (!foundDestination) {
                         foundDestination = await tryGeocodeWithORS(destination);
                         if (!foundDestination) {
                              const addressParts = destination.split(' ');
@@ -256,70 +270,69 @@
                             foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
                         }
                     }
-                    
+
                     if (foundDestination) {
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
-                        destinationName = foundDestination.label;
-                        
+
                         setStartMarker();
-                        if (destinationMarker) map.removeLayer(destinationMarker);
-                        destinationMarker = L.marker(destinationLocation).addTo(map);
+
+                        if (destinationMarker) {
+                            destinationMarker.setMap(null);
+                        }
                         
-                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [20, 20] });
+                        destinationMarker = new kakao.maps.Marker({
+                            map: map,
+                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
+                        });
+                        
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                        map.setBounds(bounds);
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
-                        const defaultMessage = "Address not found. 🤯";
-                        if (startMarker) {
-                             startMarker.bindPopup(defaultMessage).openPopup();
-                        } else {
-                            L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
+                        if (timerContainer) {
+                            timerContainer.innerHTML = 'Address not found. 🤯';
                         }
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = error.message.includes("API key") ? "Invalid API Key 🤯" : "Address not found or routing error occurred.";
-                    if (startMarker) {
-                        startMarker.bindPopup(errorMessage).openPopup();
-                    } else {
-                        L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
+                    if (timerContainer) {
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
                     }
                 }
             }
-            
+
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
                 }
-                
+
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const newPosition = [position.coords.latitude, position.coords.longitude];
-                        
+
                         if (!lastKnownPosition) {
                             lastKnownPosition = newPosition;
                         }
-                        
-                        const lastLatLng = L.latLng(lastKnownPosition);
-                        const newLatLng = L.latLng(newPosition);
-                        const distanceMoved = lastLatLng.distanceTo(newLatLng);
-                        
+
+                        const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
+
                         startLocation = newPosition;
                         setStartMarker();
-                        
+
                         if (lastApiCallPosition) {
-                            const lastApiLatLng = L.latLng(lastApiCallPosition);
-                            const distanceSinceLastCall = lastApiLatLng.distanceTo(newLatLng);
-                            
+                            const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
+
                             if (distanceSinceLastCall > minDistanceForApiCall) {
                                 lastApiCallPosition = newPosition;
                                 getRouteAndTravelTime();
                             }
                         }
-
+                        
                         lastKnownPosition = newPosition;
                     },
                     (error) => {
@@ -330,6 +343,18 @@
                     },
                     { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
                 );
+            }
+
+            function calculateDistance(coord1, coord2) {
+                const toRad = (x) => x * Math.PI / 180;
+                const R = 6371e3;
+                const dLat = toRad(coord2[0] - coord1[0]);
+                const dLng = toRad(coord2[1] - coord1[1]);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
+                          Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c;
             }
 
             function decodePolyline(encoded) {
@@ -367,21 +392,27 @@
                     return;
                 }
                 
-                const startLatLng = L.latLng(startLocation);
-                const destinationLatLng = L.latLng(destinationLocation);
-                const distance = startLatLng.distanceTo(destinationLatLng);
+                const distance = calculateDistance(startLocation, destinationLocation);
 
                 if (distance < 350) {
                     if (timerContainer) {
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
-                    if (currentRouteLayer) {
-                        map.removeLayer(currentRouteLayer);
-                        currentRouteLayer = null;
+                    if (routePolyline) {
+                         routePolyline.setMap(null);
+                         routePolyline = null;
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
+                    }
+                    return;
+                }
+
+                if (!ORS_API_KEY) {
+                    console.error("OpenRouteService API key is missing.");
+                    if (timerContainer) {
+                        timerContainer.innerHTML = "ERROR: OpenRouteService API key is missing. Please add your key.";
                     }
                     return;
                 }
@@ -408,41 +439,54 @@
                         const errorData = await response.json().catch(() => ({}));
                         const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
                         if (response.status === 403) {
-                             throw new Error("Invalid ORS API key. Please check your key or generate a new one.");
+                             throw new Error("OpenRouteService API key is invalid.");
                         }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
 
                     const data = await response.json();
-                    
+
                     if (data && data.routes && data.routes.length > 0) {
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
                         const durationInSeconds = route.summary.duration;
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
-                        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'skyblue'}).addTo(map);
-                        
+                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+
+                        if (routePolyline) {
+                            routePolyline.setMap(null);
+                        }
+
+                        routePolyline = new kakao.maps.Polyline({
+                            path: path,
+                            strokeWeight: 5,
+                            strokeColor: '#87CEEB',
+                            strokeOpacity: 0.8,
+                            strokeStyle: 'solid'
+                        });
+
+                        routePolyline.setMap(map);
+
                         const durationInMinutes = Math.round(durationInSeconds / 60);
-                        
+
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
-                        
-                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [20, 20] });
 
+                        const bounds = new kakao.maps.LatLngBounds();
+                        path.forEach(latLng => bounds.extend(latLng));
+                        map.setBounds(bounds);
                     } else {
-                           if (timerContainer) {
-                                timerContainer.innerHTML = "Routing data could not be found.";
-                           }
+                        if (timerContainer) {
+                            timerContainer.innerHTML = "Routing data could not be found.";
+                        }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "Routing error occurred.";
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Routing error occurred.";
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
@@ -450,8 +494,17 @@
                     }
                 }
             }
-            
-            window.addEventListener('load', init);
+
+            if (typeof kakao !== 'undefined' && kakao.maps) {
+                kakao.maps.load(function() {
+                    init();
+                });
+            } else {
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.innerHTML = '<div class="error-message">Kakao Maps API failed to load. Please check your script tag and API key.</div>';
+                }
+            }
         })();
     </script>
 </body>
