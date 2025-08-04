@@ -19,8 +19,8 @@
 
         .widget-container {
             /*
-             * The background of the entire widget container is now transparent.
-             */
+            * The background of the entire widget container is now transparent.
+            */
             background-color: rgba(255, 255, 255, 0);
             position: fixed;
             top: 20px;
@@ -48,15 +48,15 @@
             height: 100%;
             width: 100%;
             /*
-             * The map's opacity is now set to 80%.
-             */
+            * The map's opacity is now set to 80%.
+            */
             opacity: 0.8;
         }
         
         /*
-         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
-         * The !important flag is used to ensure it overrides the inline styles from the SDK.
-         */
+        * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
+        * The !important flag is used to ensure it overrides the inline styles from the SDK.
+        */
         #map .kakao-maps-sdk,
         #map .View_logo,
         #map .View_copyright,
@@ -71,8 +71,8 @@
             transform: translateX(-50%);
             max-width: 90%;
             /*
-             * The background is now a solid white for full opacity.
-             */
+            * The background is now a solid white for full opacity.
+            */
             background-color: #fff;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -83,8 +83,8 @@
             font-weight: bold;
             color: #333;
             /*
-             * The opacity has been changed to 80%.
-             */
+            * The opacity has been changed to 80%.
+            */
             opacity: 0.8;
         }
 
@@ -107,6 +107,26 @@
         .wiggle-text {
             display: inline-block;
             animation: wiggle-up-down 1s ease-in-out infinite;
+        }
+
+        /*
+        * CSS for the animated dots
+        */
+        .animated-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #34D399; /* Green color */
+            border-radius: 50%;
+            box-shadow: 0 0 5px 2px #34D399; /* Initial glow */
+            position: absolute;
+            animation: pulse-glow 2s infinite ease-in-out;
+            transform: translate(-50%, -50%); /* Center the dot on the coordinates */
+        }
+        
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px 2px #34D399; }
+            50% { box-shadow: 0 0 10px 4px #10B981; } /* Brighter glow */
+            100% { box-shadow: 0 0 5px 2px #34D399; }
         }
     </style>
     <!--
@@ -145,14 +165,21 @@
             let timerContainer = null;
             let isMapInitialized = false;
 
+            // Variables for the new animation
+            let animatedDots = [];
+            let animationFrameId = null;
+            const numDots = 8; // Number of animated dots
+            const dotSpeed = 0.005; // Speed of the dots along the path (higher = faster)
+            let animationStartTime = null;
+
             /**
              * Initializes the map and fetches the destination from URL parameters.
              */
             function init() {
                 timerContainer = document.getElementById('timer-container');
                 /*
-                 * Display a loading message while the route is being calculated.
-                 */
+                * Display a loading message while the route is being calculated.
+                */
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -485,6 +512,11 @@
                     if (routePolyline) {
                          routePolyline.setMap(null);
                          routePolyline = null;
+                         cancelAnimationFrame(animationFrameId);
+                    }
+                    if (animatedDots.length > 0) {
+                        animatedDots.forEach(dot => dot.setMap(null));
+                        animatedDots = [];
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
@@ -538,19 +570,22 @@
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
 
+                        // Clear previous polyline if it exists
                         if (routePolyline) {
                             routePolyline.setMap(null);
                         }
-
+                        // Create a new dashed polyline for the route
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 5,
-                            strokeColor: '#87CEEB',
+                            strokeWeight: 4,
+                            strokeColor: '#34D399', // Green color
                             strokeOpacity: 0.8,
-                            strokeStyle: 'solid'
+                            strokeStyle: 'dashed' // Dashed style
                         });
-
                         routePolyline.setMap(map);
+
+                        // Start the animation for the moving dots
+                        startAnimation(path);
 
                         const durationInMinutes = Math.round(durationInSeconds / 60);
 
@@ -558,9 +593,6 @@
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
                         
-                        // The map bounds will be adjusted by updateMapViewToFitMarkers() in the polling function.
-                        // We do not need to set bounds here as it might conflict with the new logic.
-
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
@@ -577,6 +609,82 @@
                         locationWatchId = null;
                     }
                 }
+            }
+
+            /**
+             * Initializes and starts the animation of the green dots along the route.
+             * @param {Array<kakao.maps.LatLng>} path The coordinates of the route.
+             */
+            function startAnimation(path) {
+                // Clear any existing animation frames and dots
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                if (animatedDots.length > 0) {
+                    animatedDots.forEach(dot => dot.setMap(null));
+                    animatedDots = [];
+                }
+
+                if (path.length < 2) return;
+
+                const pathLength = path.length;
+                const dotInterval = 1 / numDots; // Spacing between dots
+
+                // Create the animated dots as CustomOverlays
+                for (let i = 0; i < numDots; i++) {
+                    const dotPosition = (i * dotInterval) % 1; // Stagger initial positions
+                    const dot = new kakao.maps.CustomOverlay({
+                        map: map,
+                        position: path[0],
+                        content: `<div class="animated-dot"></div>`,
+                        yAnchor: 0.5,
+                        zIndex: 10
+                    });
+                    animatedDots.push({ dot: dot, progress: dotPosition });
+                }
+
+                // Main animation loop
+                function animate(timestamp) {
+                    if (!animationStartTime) {
+                        animationStartTime = timestamp;
+                    }
+                    const elapsedTime = (timestamp - animationStartTime) / 1000;
+                    
+                    animatedDots.forEach(dotObj => {
+                        dotObj.progress = (dotObj.progress + (dotSpeed * 0.016)) % 1; // 0.016 is roughly 1/60th of a second
+                        
+                        let totalDistance = 0;
+                        for (let i = 0; i < pathLength - 1; i++) {
+                            totalDistance += calculateDistance([path[i].getLat(), path[i].getLng()], [path[i+1].getLat(), path[i+1].getLng()]);
+                        }
+                        
+                        let targetDistance = totalDistance * dotObj.progress;
+                        let currentDistance = 0;
+                        let dotPosition = path[0];
+
+                        for (let i = 0; i < pathLength - 1; i++) {
+                            const segmentStart = path[i];
+                            const segmentEnd = path[i + 1];
+                            const segmentDistance = calculateDistance([segmentStart.getLat(), segmentStart.getLng()], [segmentEnd.getLat(), segmentEnd.getLng()]);
+
+                            if (currentDistance + segmentDistance >= targetDistance) {
+                                const remainingDistance = targetDistance - currentDistance;
+                                const ratio = remainingDistance / segmentDistance;
+                                const lat = segmentStart.getLat() + (segmentEnd.getLat() - segmentStart.getLat()) * ratio;
+                                const lng = segmentStart.getLng() + (segmentEnd.getLng() - segmentStart.getLng()) * ratio;
+                                dotPosition = new kakao.maps.LatLng(lat, lng);
+                                break;
+                            }
+                            currentDistance += segmentDistance;
+                        }
+
+                        dotObj.dot.setPosition(dotPosition);
+                    });
+
+                    animationFrameId = requestAnimationFrame(animate);
+                }
+                
+                animationFrameId = requestAnimationFrame(animate);
             }
 
             if (typeof kakao !== 'undefined' && kakao.maps) {
