@@ -485,8 +485,8 @@
                         // Added a timeout to adjust the zoom level further after the bounds are set.
                         setTimeout(() => {
                             const currentLevel = map.getLevel();
-                            if (currentLevel > 3) {
-                                map.setLevel(currentLevel - 2);
+                            if (currentLevel > 2) {
+                                map.setLevel(currentLevel - 3);
                             }
                         }, 500);
 
