@@ -162,8 +162,8 @@
         .quack-text {
             position: absolute;
             font-size: 10px;
-            font-weight: bold;
-            color: #000;
+            /* The font is now extra bold (900) for a thicker appearance. */
+            font-weight: 900;
             white-space: nowrap;
             animation-duration: 1s;
             animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -419,8 +419,8 @@
                         map: map,
                         position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
                         content: content,
-                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
-                        yAnchor: 1.1,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
                         zIndex: 1
                     });
                 }
@@ -462,8 +462,8 @@
                         map: map,
                         position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                         content: content,
-                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
-                        yAnchor: 1.1,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
                         zIndex: 2
                     });
                 }
@@ -726,14 +726,24 @@
             }
 
             /**
-             * Creates and animates a "quack!" text element.
+             * Creates and animates a "quack!" text element with multiple colors.
              */
             function createQuack() {
                 const duckContainer = document.getElementById('duck-marker-container');
                 if (!duckContainer) return;
 
                 const quack = document.createElement('div');
-                quack.innerHTML = '<b>quack !</b>';
+                // An array of colors to be used for the multicolored text
+                const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
+                const text = "quack !";
+                let colorIndex = 0;
+                let content = '';
+                // Create a span for each character with a distinct color
+                for (const char of text) {
+                    content += `<span style="color: ${colors[colorIndex % colors.length]}">${char}</span>`;
+                    colorIndex++;
+                }
+                quack.innerHTML = content;
                 quack.classList.add('quack-text');
 
                 // Alternate between left and right quacks
