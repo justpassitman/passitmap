@@ -103,7 +103,7 @@
                 transform: translateY(0);
             }
             50% {
-                transform: translateY(-5px);
+                transform: translateY(-2px);
             }
         }
 
@@ -120,13 +120,13 @@
                 transform: rotate(0deg) translateY(0);
             }
             25% {
-                transform: rotate(-5deg) translateY(-5px);
+                transform: rotate(-3deg) translateY(-2px);
             }
             50% {
-                transform: rotate(5deg) translateY(0);
+                transform: rotate(3deg) translateY(0);
             }
             75% {
-                transform: rotate(-5deg) translateY(-5px);
+                transform: rotate(-3deg) translateY(-2px);
             }
         }
         
@@ -136,14 +136,15 @@
         
         /*
         * This animation creates a pulsing green glow for the destination marker.
-        * The box-shadow values have been increased to make the glow thicker.
         */
         @keyframes glow-green-pulse {
             0%, 100% {
-                box-shadow: 0 0 15px 0px rgba(0, 255, 0, 0.4);
+                /* Thicker and darker glow from the center */
+                box-shadow: 0 0 10px 5px rgba(0, 150, 0, 0.5);
             }
             50% {
-                box-shadow: 0 0 45px 15px rgba(0, 255, 0, 0.8);
+                /* Thicker and darker glow with more spread */
+                box-shadow: 0 0 40px 10px rgba(0, 150, 0, 0.9);
             }
         }
         
@@ -185,10 +186,9 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
-            // The max marker size has been tripled to 90px.
-            const maxMarkerSize = 90;
-            // The base marker size has been tripled to 60px.
-            const baseMarkerSize = 60;
+            const maxMarkerSize = 30;
+            const baseMarkerSize = 20;
+            const destinationSizeMultiplier = 2.5; // New multiplier for destination marker
 
             let map = null;
             let startLocation = null;
@@ -251,17 +251,18 @@
                 const destinationContainer = document.getElementById('destination-marker-container');
                 if (!duckImageElement || !destinationContainer) return;
 
-                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
-
-                duckImageElement.style.width = `${scale}px`;
-                duckImageElement.style.height = `${scale}px`;
+                // Calculate duck marker size
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
+                duckImageElement.style.width = `${duckScale}px`;
+                duckImageElement.style.height = `${duckScale}px`;
                 
-                // Update the destination marker size
-                destinationContainer.style.width = `${scale}px`;
-                destinationContainer.style.height = `${scale}px`;
+                // Calculate destination marker size
+                const destinationScale = duckScale * destinationSizeMultiplier;
+                destinationContainer.style.width = `${destinationScale}px`;
+                destinationContainer.style.height = `${destinationScale}px`;
                 const emoji = destinationContainer.querySelector('.destination-emoji');
                 if (emoji) {
-                    emoji.style.fontSize = `${scale / 2}px`; // Adjust emoji size based on container
+                    emoji.style.fontSize = `${destinationScale / 2}px`; // Adjust emoji size based on container
                 }
             }
 
@@ -318,12 +319,13 @@
                 }
                 
                 const currentLevel = map.getLevel();
-                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                const emojiFontSize = scale / 2; // Dynamic font size
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                const destinationScale = duckScale * destinationSizeMultiplier;
+                const emojiFontSize = destinationScale / 2; // Dynamic font size
 
                 // The new HTML content for the glowing egg marker.
                 const content = `
-                    <div id="destination-marker-container" class="glow-green flex items-center justify-center rounded-full" style="width: ${scale}px; height: ${scale}px;">
+                    <div id="destination-marker-container" class="glow-green flex items-center justify-center rounded-full" style="width: ${destinationScale}px; height: ${destinationScale}px;">
                          <span id="destination-emoji" class="destination-emoji" style="font-size: ${emojiFontSize}px;">🥚</span>
                     </div>
                 `;
