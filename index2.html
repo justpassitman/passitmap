@@ -299,6 +299,10 @@
                         bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
                         map.setBounds(bounds);
 
+                        // Adjust the zoom level to show more road detail.
+                        // A lower number means a more detailed, zoomed-in view.
+                        map.setLevel(map.getLevel() - 2);
+
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
@@ -486,6 +490,11 @@
                         const bounds = new kakao.maps.LatLngBounds();
                         path.forEach(latLng => bounds.extend(latLng));
                         map.setBounds(bounds);
+
+                        // Adjust the zoom level to show more road detail.
+                        // A lower number means a more detailed, zoomed-in view.
+                        map.setLevel(map.getLevel() - 2);
+
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
