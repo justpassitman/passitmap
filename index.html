@@ -1,180 +1,449 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>KakaoMap Live Navigation Widget</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Delivery Widget</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        html, body {width:100%;height:100%;margin:0;padding:0;}
-        #map {width:100%;height:calc(100% - 150px);}
-        #info-container {padding: 10px; background-color: #f1f1f1;}
-        #route-info {font-weight: bold;}
+        body {
+            /* This is the key line to make the body background transparent */
+            background-color: transparent; 
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        
+        .widget-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            /* Increased dimensions by 20% */
+            width: 150px;
+            height: 188px;
+            /* REMOVED: background-color: rgba(255, 255, 255, 0.5); */
+            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1000;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            
+            /* REMOVED: backdrop-filter: blur(8px); */
+            /* REMOVED: -webkit-backdrop-filter: blur(8px); */
+        }
+
+        .map-container {
+            flex-grow: 1;
+            padding: 0;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+            position: relative; /* Add this to make .timer-container's position absolute relative to the map container */
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .timer-container {
+            /* Changed to absolute positioning and moved inside the map container */
+            position: absolute; 
+            bottom: 0.75rem; /* Adjusted padding for the larger size */
+            left: 50%; /* Center the element horizontally */
+            transform: translateX(-50%); /* Adjust for the element's width */
+            max-width: 90%; /* Responsive width */
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            z-index: 1001;
+            padding: 0.75rem; /* Adjusted padding for the larger size */
+            text-align: center;
+            font-size: 100%; /* Kept font size consistent for readability */
+            font-weight: bold;
+            color: #333;
+        }
+
+        /* New CSS for the wiggle animation */
+        @keyframes wiggle-up-down {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        .wiggle-text {
+            display: inline-block;
+            animation: wiggle-up-down 1s ease-in-out infinite;
+        }
     </style>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
-<body>
-    <div id="info-container">
-        <p>
-            Destination: <span id="destination-text"></span>
-        </p>
-        <div id="route-info"></div>
+<body class="bg-gray-100">
+
+    <div class="widget-container">
+        <div class="map-container rounded-b-xl">
+            <div id="map"></div>
+            <div id="timer-container" class="timer-container"></div>
+        </div>
     </div>
-    <div id="map"></div>
     
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_JS_KEY&libraries=services"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
-        // === IMPORTANT: Replace these with your actual keys ===
-        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72'; // Your JavaScript key for map display
-        const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63'; // Your REST API key for directions
+        (function() {
+            // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
+            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
+            
+            // The minimum distance the user must move (in meters) before a new API call is made.
+            // This prevents excessive API calls while still providing live updates.
+            const minDistanceForApiCall = 500;
+            
+            let map = null;
+            let startLocation = null;
+            let destinationLocation = null;
+            let lastKnownPosition = null; // Store the last position to check for significant movement
+            let lastApiCallPosition = null; // Store the last position from which we made an API call
+            let startMarker = null;
+            let destinationMarker = null;
+            let currentRouteLayer = null;
+            let locationWatchId = null; // Store the watchPosition ID
+            let destinationName = null;
+            let timerContainer = null;
 
-        // Define the destination address from the URL parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110'; // Default destination: Seoul City Hall
-        document.getElementById('destination-text').innerText = destinationAddress;
+            function init() {
+                // Initializing the map with zoom and attribution controls disabled
+                map = L.map('map', {
+                    zoomControl: false,
+                    attributionControl: false
+                }).setView([0, 0], 2);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    subdomains: 'abcd'
+                }).addTo(map);
 
-        // Initialize the map and services
-        const mapContainer = document.getElementById('map');
-        const mapOption = { center: new kakao.maps.LatLng(37.566826, 126.9786567), level: 3 };
-        const map = new kakao.maps.Map(mapContainer, mapOption);
-        const geocoder = new kakao.maps.services.Geocoder();
-        
-        let userMarker = new kakao.maps.Marker({
-            map: map,
-            image: new kakao.maps.MarkerImage(
-                'https://i.imgur.com/gK52L9o.png', // A custom marker for the user's position
-                new kakao.maps.Size(30, 40)
-            )
-        });
-        let polyline;
-        let destinationCoords;
+                timerContainer = document.getElementById('timer-container');
 
-        // Geocode the destination address once at the start
-        function geocodeDestination() {
-            return new Promise((resolve, reject) => {
-                geocoder.addressSearch(destinationAddress, function(result, status) {
-                    if (status === kakao.maps.services.Status.OK) {
-                        destinationCoords = new kakao.maps.LatLng(result[0].y, result[0].x);
-                        new kakao.maps.Marker({ map: map, position: destinationCoords });
-                        resolve();
+                const urlParams = new URLSearchParams(window.location.search);
+                const destination = urlParams.get('destination');
+                
+                if (destination) {
+                    processDestination(destination);
+                } else {
+                    startLocation = [37.5665, 126.9780];
+                    map.setView(startLocation, 12);
+                }
+            }
+
+            function onLocationSuccess(position) {
+                startLocation = [position.coords.latitude, position.coords.longitude];
+                setStartMarker();
+                map.setView(startLocation, 12);
+            }
+
+            function onLocationError(error) {
+                console.error("Geolocation error:", error);
+                startLocation = [37.5665, 126.9780];
+                setStartMarker();
+                map.setView(startLocation, 12);
+            }
+
+            function setStartMarker() {
+                 const duckIcon = L.icon({
+                     iconUrl: 'duck.png',
+                     iconSize: [38, 38],
+                     iconAnchor: [19, 38],
+                     popupAnchor: [0, -38]
+                 });
+                
+                if (startMarker) {
+                    startMarker.setLatLng(startLocation);
+                } else {
+                    startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
+                        .bindPopup("Your current location");
+                }
+            }
+
+            async function processDestination(destination) {
+                const getUserLocation = () => new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
                     } else {
-                        reject(new Error(`Could not find destination: ${destinationAddress}`));
+                        reject(new Error("Geolocation not supported."));
                     }
                 });
-            });
-        }
 
-        // Start the real-time tracking process
-        async function startNavigation() {
-            try {
-                await geocodeDestination();
-                
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
-                        enableHighAccuracy: true,
-                        maximumAge: 0
-                    });
-                } else {
-                    alert("Geolocation is not supported by your browser.");
-                }
-            } catch (error) {
-                console.error("Error during navigation setup:", error);
-                alert(error.message);
-            }
-        }
-
-        // Main function to handle position updates
-        let lastPositionTime = 0;
-        const MIN_UPDATE_INTERVAL = 10000; // 10 seconds in milliseconds
-        
-        async function updatePosition(position) {
-            const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-            userMarker.setPosition(currentCoords);
-            map.setCenter(currentCoords);
-
-            // Only update the route and info every 10 seconds
-            const now = Date.now();
-            if (now - lastPositionTime > MIN_UPDATE_INTERVAL) {
-                lastPositionTime = now;
                 try {
-                    const routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
-                    drawRoute(routeData);
-                    displayRouteInfo(routeData);
+                    const position = await getUserLocation();
+                    startLocation = [position.coords.latitude, position.coords.longitude];
+                    
+                    let foundDestination = null;
+
+                    // Attempt 1: Try the original address as is.
+                    foundDestination = await tryGeocode(destination);
+
+                    // Attempt 2: If no result, try a simplified version of the address.
+                    // This is especially useful for Korean addresses that might include apartment numbers
+                    // or other very specific details that confuse the geocoding service.
+                    if (!foundDestination) {
+                        const addressParts = destination.split(' ');
+                        const simplifiedAddress = addressParts.slice(0, -1).join(' ');
+                        if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                            foundDestination = await tryGeocode(simplifiedAddress);
+                        }
+                    }
+
+                    // Attempt 3: If still no result, try adding ", Seoul" as a final fallback.
+                    if (!foundDestination) {
+                        foundDestination = await tryGeocode(destination + ", Seoul");
+                    }
+                    
+                    if (foundDestination) {
+                        const destPoint = foundDestination.features[0].geometry.coordinates;
+                        destinationLocation = [destPoint[1], destPoint[0]];
+                        destinationName = foundDestination.features[0].properties.label;
+                        
+                        setStartMarker();
+                        if (destinationMarker) map.removeLayer(destinationMarker);
+                        destinationMarker = L.marker(destinationLocation).addTo(map);
+                        
+                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                        map.fitBounds(bounds, { padding: [20, 20] });
+
+                        // Initial API call
+                        lastApiCallPosition = startLocation;
+                        getRouteAndTravelTime();
+                        startLocationPolling();
+                    } else {
+                        // If no match is found after all attempts, show a generic error.
+                        const defaultMessage = "Address not found. 🤯";
+                        if (startMarker) {
+                             startMarker.bindPopup(defaultMessage).openPopup();
+                        } else {
+                            L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
+                        }
+                    }
                 } catch (error) {
-                    console.error("Error fetching route:", error);
+                    console.error("Error:", error);
+                    let errorMessage = "🤯 GPS out or simplify the adress";
+                    if (startMarker) {
+                        startMarker.bindPopup(errorMessage).openPopup();
+                    } else {
+                        L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
+                    }
                 }
             }
-        }
-
-        // Handle geolocation errors
-        function handleGeolocationError(error) {
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    alert("User denied the request for Geolocation.");
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    alert("Location information is unavailable.");
-                    break;
-                case error.TIMEOUT:
-                    alert("The request to get user location timed out.");
-                    break;
-                case error.UNKNOWN_ERROR:
-                    alert("An unknown error occurred.");
-                    break;
-            }
-        }
-
-        // Helper function to fetch the bicycle route from the REST API
-        async function fetchBicycleRoute(start, end) {
-            const url = 'https://apis-navi.kakaomobility.com/v1/directions';
-            const headers = { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` };
-            const body = new URLSearchParams({
-                origin: `${start.getLng()},${start.getLat()}`,
-                destination: `${end.getLng()},${end.getLat()}`,
-                car_fuel: 'bycicle'
-            });
-            const response = await fetch(url, { method: 'POST', headers: headers, body: body });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
-            }
-            return response.json();
-        }
-
-        // Helper function to draw the polyline on the map
-        function drawRoute(routeData) {
-            const lines = routeData.routes[0].sections.flatMap(section => 
-                section.roads.flatMap(road => 
-                    road.vertexes.map((_, i, arr) => {
-                        if (i % 2 === 0 && i < arr.length - 1) {
-                            return new kakao.maps.LatLng(arr[i+1], arr[i]);
+            
+            async function tryGeocode(query) {
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        // Check for a specific API key error
+                        if (geocodeResponse.status === 403) {
+                            console.error("Geocoding failed: Invalid API key.");
+                            throw new Error("Invalid API key. Please check your key or generate a new one.");
                         }
-                    }).filter(Boolean)
-                )
-            );
+                        return null;
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length === 0) {
+                        return null;
+                    }
+                    
+                    return geocodeData;
+                } catch (error) {
+                    console.error("Geocoding failed:", error);
+                    return null;
+                }
+            }
+            
+            // This function now uses the more battery-efficient watchPosition API
+            function startLocationPolling() {
+                // Clear any previous watch to prevent multiple listeners
+                if (locationWatchId) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                }
+                
+                // Use watchPosition to monitor for changes in the user's location
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const newPosition = [position.coords.latitude, position.coords.longitude];
+                        
+                        // Check if this is the first position or if the user has moved significantly
+                        if (!lastKnownPosition) {
+                            lastKnownPosition = newPosition;
+                        }
+                        
+                        const lastLatLng = L.latLng(lastKnownPosition);
+                        const newLatLng = L.latLng(newPosition);
+                        const distanceMoved = lastLatLng.distanceTo(newLatLng);
+                        
+                        // Always update the duck's location to provide a live-tracking feel
+                        startLocation = newPosition;
+                        setStartMarker();
+                        
+                        // Check if the user has moved more than the minimum distance for a new API call
+                        if (lastApiCallPosition) {
+                            const lastApiLatLng = L.latLng(lastApiCallPosition);
+                            const distanceSinceLastCall = lastApiLatLng.distanceTo(newLatLng);
+                            
+                            if (distanceSinceLastCall > minDistanceForApiCall) {
+                                // Update the last API call position and fetch a new route
+                                lastApiCallPosition = newPosition;
+                                getRouteAndTravelTime();
+                            }
+                        }
 
-            if (polyline) polyline.setMap(null);
+                        // Update the last known position for the next movement check
+                        lastKnownPosition = newPosition;
+                    },
+                    (error) => {
+                        console.error("Real-time geolocation error:", error);
+                        // If an error occurs, stop watching the position to save resources
+                        if (locationWatchId) {
+                            navigator.geolocation.clearWatch(locationWatchId);
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
 
-            polyline = new kakao.maps.Polyline({
-                path: lines,
-                strokeWeight: 5,
-                strokeColor: '#0055ff',
-                strokeOpacity: 0.7,
-                strokeStyle: 'solid'
-            });
+            function decodePolyline(encoded) {
+                let points = [];
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
 
-            polyline.setMap(map);
-        }
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
 
-        // Helper function to display route information
-        function displayRouteInfo(routeData) {
-            const route = routeData.routes[0];
-            const distance = (route.summary.distance / 1000).toFixed(1); // km
-            const duration = Math.round(route.summary.duration / 60); // minutes
-            document.getElementById('route-info').innerHTML = 
-                `Time: ${duration} mins, Distance: ${distance} km`;
-        }
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
 
-        // Start the process when the page loads
-        startNavigation();
+                    points.push([lat / 1e5, lng / 1e5]);
+                }
+                return points;
+            }
+
+            async function getRouteAndTravelTime() {
+                if (!startLocation || !destinationLocation) {
+                    return; 
+                }
+                
+                // Calculate distance between current location and destination
+                const startLatLng = L.latLng(startLocation);
+                const destinationLatLng = L.latLng(destinationLocation);
+                const distance = startLatLng.distanceTo(destinationLatLng);
+
+                // Check if the user is within 350 meters of the destination
+                if (distance < 350) {
+                    if (timerContainer) {
+                        // Apply the new wiggle-text class
+                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                    }
+                    if (currentRouteLayer) {
+                        map.removeLayer(currentRouteLayer);
+                        currentRouteLayer = null;
+                    }
+                    // Stop polling for new location data to save battery
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    return; // Exit the function
+                }
+
+                // If not close, proceed with fetching the route as normal
+                const orsCoords = [
+                    [startLocation[1], startLocation[0]],
+                    [destinationLocation[1], destinationLocation[0]]
+                ];
+
+                try {
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
+                    const payload = { coordinates: orsCoords };
+
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': API_KEY
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        // Add specific check for API key error here too
+                        if (response.status === 403) {
+                             throw new Error("Invalid API key. Please check your key or generate a new one.");
+                        }
+                        throw new Error(`An error occurred: ${errorMessage}.`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
+                        const durationInSeconds = route.summary.duration;
+
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
+                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'skyblue'}).addTo(map);
+                        
+                        const durationInMinutes = Math.round(durationInSeconds / 60);
+                        
+                        // Update the new floating timer window instead of a popup
+                        if (timerContainer) {
+                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
+                        }
+                        
+                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
+                        map.fitBounds(bounds, { padding: [20, 20] });
+
+                    } else {
+                         if (timerContainer) {
+                              timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                         }
+                    }
+
+                } catch (error) {
+                    console.error("Routing Error:", error);
+                    if (timerContainer) {
+                        timerContainer.innerHTML = error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address";
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                }
+            }
+            
+            window.addEventListener('load', init);
+        })();
     </script>
 </body>
 </html>
