@@ -70,7 +70,10 @@
             left: 50%;
             transform: translateX(-50%);
             max-width: 90%;
-            background-color: rgba(255, 255, 255, 0);
+            /*
+             * Set the background to be slightly translucent for readability.
+             */
+            background-color: rgba(255, 255, 255, 0.75);
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
@@ -80,9 +83,9 @@
             font-weight: bold;
             color: #333;
             /*
-             * The opacity of the timer container is set to 0 to make it invisible.
+             * The opacity of the timer container is now set to 1 to make it visible.
              */
-            opacity: 0;
+            opacity: 1;
         }
 
         .error-message {
@@ -147,6 +150,10 @@
              */
             function init() {
                 timerContainer = document.getElementById('timer-container');
+                /*
+                 * Display a loading message while the route is being calculated.
+                 */
+                timerContainer.innerHTML = 'Calculating route...';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
@@ -197,15 +204,18 @@
             }
 
             /**
-             * Smoothly pans the map to a new position.
-             * This function replaces the abrupt map center changes.
-             * @param {number[]} newPosition - The new [latitude, longitude] to pan to.
+             * A new function to automatically adjust the map view to fit both the start and destination markers.
+             * This ensures both are always visible, which was the main problem.
              */
-            function updateMapViewSmoothly(newPosition) {
-                if (!isMapInitialized || !newPosition) return;
+            function updateMapViewToFitMarkers() {
+                if (!isMapInitialized || !startLocation || !destinationLocation) {
+                    return;
+                }
                 
-                const newLatLng = new kakao.maps.LatLng(newPosition[0], newPosition[1]);
-                map.panTo(newLatLng);
+                const bounds = new kakao.maps.LatLngBounds();
+                bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                map.setBounds(bounds);
             }
 
             /**
@@ -349,7 +359,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -381,8 +391,8 @@
                         startLocation = newPosition;
                         setStartMarker();
 
-                        // Smoothly pan the map to the new position
-                        updateMapViewSmoothly(newPosition);
+                        // Update the map view to always fit both the start and destination markers.
+                        updateMapViewToFitMarkers();
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -547,10 +557,10 @@
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
+                        
+                        // The map bounds will be adjusted by updateMapViewToFitMarkers() in the polling function.
+                        // We do not need to set bounds here as it might conflict with the new logic.
 
-                        const bounds = new kakao.maps.LatLngBounds();
-                        path.forEach(latLng => bounds.extend(latLng));
-                        map.setBounds(bounds);
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
@@ -583,4 +593,3 @@
     </script>
 </body>
 </html>
-�
