@@ -99,7 +99,6 @@
             const urlParams = new URLSearchParams(window.location.search);
             const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
             
-            // Default position (Seoul City Hall) to use if GPS fails
             const DEFAULT_POSITION = new kakao.maps.LatLng(37.566826, 126.9786567);
 
             function init() {
@@ -136,7 +135,6 @@
             
             function startLiveTracking() {
                 if (navigator.geolocation) {
-                    // Try to get the live position first
                     navigator.geolocation.getCurrentPosition(pos => {
                         updatePosition(pos);
                         locationWatchId = navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
@@ -148,7 +146,6 @@
                         maximumAge: 0
                     });
                 } else {
-                    // Fallback to default location and display a message
                     timerContainer.innerHTML = "GPS not supported. Using default location.";
                     updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
                 }
@@ -201,7 +198,6 @@
             function handleGeolocationError(error) {
                 timerContainer.innerHTML = "GPS error. 🤯";
                 console.error("Geolocation API Error:", error);
-                // Fallback to default position
                 updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
             }
 
@@ -256,7 +252,7 @@
                 const body = new URLSearchParams({
                     origin: `${start.getLng()},${start.getLat()}`,
                     destination: `${end.getLng()},${end.getLat()}`,
-                    car_fuel: 'bycicle'
+                    car_fuel: 'bicycle' // Corrected from 'bycicle'
                 });
 
                 const response = await fetch(url, { method: 'POST', headers: headers, body: body });
