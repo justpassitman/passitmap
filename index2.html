@@ -224,6 +224,26 @@
                 console.error("Geolocation API Error:", error);
                 updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
             }
+            
+            // Helper function to extract a simplified address (City, Gu, Dong)
+            function extractMainAddress(fullAddress) {
+                const parts = fullAddress.split(' ');
+                let simplifiedParts = [];
+
+                for (let i = 0; i < parts.length; i++) {
+                    // Check for key address components and push them
+                    if (parts[i].endsWith('특별시') || parts[i].endsWith('광역시') || parts[i].endsWith('도')) {
+                        simplifiedParts.push(parts[i]);
+                    } else if (parts[i].endsWith('구') || parts[i].endsWith('군')) {
+                        simplifiedParts.push(parts[i]);
+                    } else if (parts[i].endsWith('동') || parts[i].endsWith('읍') || parts[i].endsWith('면')) {
+                        simplifiedParts.push(parts[i]);
+                        break; // Stop after finding the 'dong' part
+                    }
+                }
+                
+                return simplifiedParts.join(' ');
+            }
 
             // --- Updated geocodeAddress function for more robust address parsing ---
             function geocodeAddress(address) {
@@ -242,20 +262,15 @@
                     
                     // Attempt 1: Search with the original address
                     searchAndResolve(address, () => {
-                        // Attempt 2: Simplify by removing floor/level info (e.g., "지하", "2층")
-                        const simplifiedAddress1 = address.replace(/(지하|층)\s?\d+$/, '');
-                        if (simplifiedAddress1 !== address) {
-                            searchAndResolve(simplifiedAddress1, () => {
-                                // Attempt 3: Simplify further by removing building number details
-                                const simplifiedAddress2 = simplifiedAddress1.replace(/\s\d+-\d+(\s\d+)?$/, '');
-                                if (simplifiedAddress2 !== simplifiedAddress1) {
-                                    searchAndResolve(simplifiedAddress2, () => reject(new Error('All geocoding attempts failed.')));
-                                } else {
-                                    reject(new Error('Geocoding attempts failed after simplification 2.'));
-                                }
+                        console.log("Original address failed. Attempting simplification.");
+                        // Attempt 2: Simplify by extracting only the City, Gu, and Dong parts
+                        const simplifiedAddress = extractMainAddress(address);
+                        if (simplifiedAddress) {
+                            searchAndResolve(simplifiedAddress, () => {
+                                reject(new Error('Geocoding failed with both original and simplified addresses.'));
                             });
                         } else {
-                            reject(new Error('Geocoding failed with the initial address.'));
+                            reject(new Error('Geocoding failed, and a simplified address could not be extracted.'));
                         }
                     });
                 });
