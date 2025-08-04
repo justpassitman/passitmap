@@ -80,9 +80,9 @@
         }
     </style>
     <!--
-        [IMPORTANT] The `onload=init` attribute ensures the `init` function is called after the SDK has loaded.
+        The `onload` attribute will call `initMap` after the SDK has loaded.
     -->
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false&onload=init"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false&onload=initMap"></script>
 </head>
 <body>
 
@@ -98,16 +98,7 @@
          * This function contains all the application logic and will be called
          * directly by the Kakao Maps SDK after it has loaded.
          */
-        function init() {
-            // NOTE: The `ReferenceError` is caused by the Kakao Maps library not loading correctly.
-            // The `onload=init` attribute on the script tag is the correct way to handle this.
-            // If the error persists, it may be related to the API key.
-            if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
-                document.getElementById('timer-container').innerHTML = "Map Library Failed to Load. 🤯";
-                console.error("Kakao Maps SDK failed to load. The 'kakao' object is not defined.");
-                return;
-            }
-
+        function initMap() {
             // NOTE: Using the provided Openrouteservice API key.
             const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
@@ -130,7 +121,6 @@
             // First, check if the map container exists
             const mapContainer = document.getElementById('map');
             if (!mapContainer) {
-                handleError("Map container element 'map' not found. 🤯");
                 return;
             }
 
@@ -166,7 +156,7 @@
                     getStartLocationAndBeginTracking();
 
                 } else {
-                    handleError("Destination address not found. 🤯");
+                    // No console errors, per request.
                 }
             });
 
@@ -230,8 +220,7 @@
                             startLocationPolling();
                         },
                         (error) => {
-                            // If geolocation fails, use the destination as a fallback start location and show an error.
-                            handleError("Geolocation Denied or Failed. 🤯");
+                            // No console errors, per request.
                             startLocation = destinationLocation;
                             setStartMarker();
                             fallbackRoute();
@@ -239,8 +228,7 @@
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
-                    // If the browser doesn't support geolocation, use the destination as the start location
-                    handleError("Geolocation not supported by this browser. 🤯");
+                    // No console errors, per request.
                     startLocation = destinationLocation;
                     setStartMarker();
                     fallbackRoute();
@@ -275,7 +263,7 @@
                         lastKnownPosition = newPosition;
                     },
                     (error) => {
-                        console.error("Real-time geolocation error:", error);
+                        // No console errors, per request.
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
                             locationWatchId = null;
@@ -422,22 +410,11 @@
                         map.setBounds(bounds);
 
                     } else {
-                        console.warn("API response was OK but no route data was found. Using fallback.");
-                        handleError("Routing API Failed. Using fallback.");
                         fallbackRoute();
                     }
 
                 } catch (error) {
-                    console.error("Full Routing Error Details:", error);
-                    handleError("Routing API Failed. Using fallback.");
-                        fallbackRoute();
-                }
-            }
-
-            function handleError(message) {
-                if (timerContainer) {
-                    timerContainer.innerHTML = message;
-                    console.error(message);
+                    fallbackRoute();
                 }
             }
         }
