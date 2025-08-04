@@ -73,7 +73,7 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JAVASCRIPT_KEY"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -86,10 +86,9 @@
     
     <script>
         (function() {
-            // !!! IMPORTANT: Replace with your actual API keys !!!
+            // Your API keys
             const KAKAO_JAVASCRIPT_KEY = "00a03dac8488d12731e4021756938e72";
-            const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=
-";
+            const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
             const minDistanceForApiCall = 500;
             
@@ -102,8 +101,8 @@
             let destinationMarker = null;
             let currentRouteLayer = null;
             let locationWatchId = null; 
-            let destinationName = null;
             let timerContainer = null;
+            let geocoder = null;
 
             function init() {
                 timerContainer = document.getElementById('timer-container');
@@ -118,6 +117,9 @@
                 map.setZoomable(false);
                 map.setDraggable(false);
                 map.setKeyboardShortcuts(false);
+                
+                // Initialize Kakao Geocoder
+                geocoder = new kakao.maps.services.Geocoder();
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -172,59 +174,30 @@
                     const position = await getUserLocation();
                     startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
                     
-                    let foundDestination = await tryGeocode(destination);
-                    
-                    if (foundDestination) {
-                        const destPoint = foundDestination.features[0].geometry.coordinates;
-                        // ORS coordinates are [lng, lat], Kakao are [lat, lng]
-                        destinationLocation = new kakao.maps.LatLng(destPoint[1], destPoint[0]); 
-                        destinationName = foundDestination.features[0].properties.label;
-                        
-                        setStartMarker();
-                        setDestinationMarker();
-                        
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(startLocation);
-                        bounds.extend(destinationLocation);
-                        map.setBounds(bounds);
+                    // Use Kakao Geocoder for robust Korean address search
+                    geocoder.addressSearch(destination, function(result, status) {
+                        if (status === kakao.maps.services.Status.OK) {
+                            destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
+                            
+                            setStartMarker();
+                            setDestinationMarker();
+                            
+                            const bounds = new kakao.maps.LatLngBounds();
+                            bounds.extend(startLocation);
+                            bounds.extend(destinationLocation);
+                            map.setBounds(bounds);
 
-                        lastApiCallPosition = startLocation;
-                        getRouteAndTravelTime();
-                        startLocationPolling();
-                    } else {
-                        handleError("Address not found. 🤯");
-                    }
+                            lastApiCallPosition = startLocation;
+                            getRouteAndTravelTime();
+                            startLocationPolling();
+                        } else {
+                            handleError("Address not found. 🤯");
+                        }
+                    });
+
                 } catch (error) {
                     console.error("Error:", error);
                     handleError("🤯 GPS out or simplify the address");
-                }
-            }
-
-            async function tryGeocode(query) {
-                try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${OPENROUTESERVICE_API_KEY}&text=${encodeURIComponent(query)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
-                    
-                    if (!geocodeResponse.ok) {
-                        const errorData = await geocodeResponse.json().catch(() => ({}));
-                        const errorMessage = errorData.error?.message || `API request failed with status: ${geocodeResponse.status}`;
-                        if (geocodeResponse.status === 403) {
-                            throw new Error("Invalid API key.");
-                        }
-                        throw new Error(`Geocoding error: ${errorMessage}`);
-                    }
-                    
-                    const geocodeData = await geocodeResponse.json();
-                    
-                    if (geocodeData.features.length === 0) {
-                        return null;
-                    }
-                    
-                    return geocodeData;
-                } catch (error) {
-                    console.error("Geocoding failed:", error);
-                    handleError(error.message);
-                    return null;
                 }
             }
 
@@ -320,6 +293,7 @@
                     return;
                 }
 
+                // Openrouteservice expects coordinates in [lng, lat] format
                 const orsCoords = [
                     [startLocation.getLng(), startLocation.getLat()],
                     [destinationLocation.getLng(), destinationLocation.getLat()]
