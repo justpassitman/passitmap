@@ -145,8 +145,8 @@
             let timerContainer = null;
             let isMapInitialized = false;
 
-            const duckImageSrc = 'https://placehold.co/40x40/FFD700/000000?text=duck';
-            const destinationImageSrc = 'https://placehold.co/40x40/000000/FFFFFF?text=dest';
+            // Use the provided duck.png file for the current position marker.
+            const duckImageSrc = 'duck.png';
 
             // A base size for markers that will be scaled dynamically
             const baseMarkerSize = 40;
@@ -192,11 +192,12 @@
 
             /**
             * Updates the size of the markers based on the map's current zoom level.
-            * This ensures the markers are visually "constant" relative to the screen, not the map scale.
+            * This ensures the duck marker is visually "constant" relative to the screen, not the map scale.
+            * The destination marker is the default one and doesn't require dynamic sizing.
             * @param {number} level The current zoom level of the map.
             */
             function updateMarkerSize(level) {
-                if (!startMarker || !destinationMarker) return;
+                if (!startMarker) return;
 
                 // A scaling factor to make markers bigger as the map zooms out (higher level number)
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2.5)), 120);
@@ -206,15 +207,8 @@
                     new kakao.maps.Size(scale, scale),
                     { offset: new kakao.maps.Point(scale / 2, scale) }
                 );
-                
-                const destinationImage = new kakao.maps.MarkerImage(
-                    destinationImageSrc,
-                    new kakao.maps.Size(scale, scale),
-                    { offset: new kakao.maps.Point(scale / 2, scale) }
-                );
 
                 startMarker.setImage(duckImage);
-                destinationMarker.setImage(destinationImage);
             }
 
 
@@ -231,7 +225,7 @@
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
                 
-                // For the 'duck.png' image, a placeholder URL is used as local files cannot be loaded.
+                // Use the provided duck.png and size it dynamically.
                 const imageSize = new kakao.maps.Size(scale, scale);
                 const imageOption = { offset: new kakao.maps.Point(scale / 2, scale) };
                 
@@ -256,6 +250,8 @@
                 const bounds = new kakao.maps.LatLngBounds();
                 bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                 bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                
+                // The `setBounds` method is called without padding to focus on the travel.
                 map.setBounds(bounds);
             }
 
@@ -385,19 +381,10 @@
                             destinationMarker.setMap(null);
                         }
 
-                        const currentLevel = map.getLevel();
-                        const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2.5)), 120);
-
-                        const destinationImage = new kakao.maps.MarkerImage(
-                            destinationImageSrc,
-                            new kakao.maps.Size(scale, scale),
-                            { offset: new kakao.maps.Point(scale / 2, scale) }
-                        );
-                        
+                        // Use the default Kakao Maps marker for the destination
                         destinationMarker = new kakao.maps.Marker({
                             map: map,
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                            image: destinationImage
                         });
                         
                         const bounds = new kakao.maps.LatLngBounds();
