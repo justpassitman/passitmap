@@ -268,8 +268,11 @@
             const arrivalDistance = 50;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
-            // The destination marker size will be at most 80% of the duck's size.
+            // The destination marker size will be at most 80% of the duck's size for the default state.
             const destinationSizeMultiplier = 0.8;
+            // The multiplier for animated markers.
+            const animatedMarkerMultiplier = 2;
+
 
             let map = null;
             let startLocation = null;
@@ -345,9 +348,9 @@
                 if (destinationContainer) {
                     const currentDistance = calculateDistance(startLocation, destinationLocation);
                     let destinationScale = 0;
-                    if (currentDistance < arrivalDistance || currentDistance < veryFastAnimationDistance) {
-                        // The f.png marker is now double the size of the duck marker.
-                        destinationScale = duckScale * 2;
+                    // All animated markers (d.png and f.png) will now be double the size.
+                    if (currentDistance < gentleAnimationDistance) {
+                        destinationScale = duckScale * animatedMarkerMultiplier;
                     } else {
                         destinationScale = duckScale * destinationSizeMultiplier;
                     }
@@ -387,17 +390,18 @@
                         </div>
                     `;
                 } else if (state === 'gentle') {
-                    destinationScale = duckScale * destinationSizeMultiplier;
+                    // The d.png marker is now double the size of the duck marker.
+                    destinationScale = duckScale * animatedMarkerMultiplier;
                     className = 'destination-marker-gentle';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
                     // f.png size is now double the duck size and animated
-                    destinationScale = duckScale * 2;
+                    destinationScale = duckScale * animatedMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 } else if (state === 'arrived') {
                     // The f.png marker is now double the size of the duck and has the very-fast animation
-                    destinationScale = duckScale * 2;
+                    destinationScale = duckScale * animatedMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 }
@@ -415,6 +419,7 @@
                         map: map,
                         position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
                         content: content,
+                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
                         yAnchor: 1.1,
                         zIndex: 1
                     });
@@ -457,6 +462,7 @@
                         map: map,
                         position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                         content: content,
+                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
                         yAnchor: 1.1,
                         zIndex: 2
                     });
