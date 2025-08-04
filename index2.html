@@ -292,8 +292,8 @@
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
-                        // Call the function to automatically adjust the map view.
-                        adjustMapView();
+                        // Use the new, smoother map update function.
+                        updateMapViewSmoothly();
                         
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
@@ -311,25 +311,39 @@
                 }
             }
 
-            // This new function handles the dynamic centering and zooming.
-            function adjustMapView() {
-                if (!startLocation || !destinationLocation) {
+            /**
+             * Updates the map view to smoothly keep both the start and destination markers in view.
+             * This function calculates the optimal center and zoom level to ensure both points
+             * are visible, with a small buffer, providing a smooth animation.
+             */
+            function updateMapViewSmoothly() {
+                if (!startLocation || !destinationLocation || !map) {
                     return;
                 }
                 const startLatLng = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
                 const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
 
                 // Create a LatLngBounds object and extend it to include both markers.
-                // This will automatically calculate the best zoom level and center to fit both points.
                 const bounds = new kakao.maps.LatLngBounds();
                 bounds.extend(startLatLng);
                 bounds.extend(destinationLatLng);
 
-                // Pan the map to the new bounds smoothly.
-                map.panTo(bounds.getCenter());
+                // Set the bounds to the map to get the optimal zoom level, but don't finalize the view yet.
+                const currentLevel = map.getLevel();
                 map.setBounds(bounds);
-            }
+                const idealLevel = map.getLevel();
+                
+                // Reset the level to avoid a quick jump before the animation.
+                map.setLevel(currentLevel);
+                
+                // Use a slightly larger bounds object to create a padding effect.
+                // We'll zoom out by one level from the ideal to create a 10px-like margin.
+                const finalLevel = Math.min(idealLevel + 1, 14); // Max zoom level 14 to not zoom out too much
 
+                // Animate the map to the new center and level for a smooth transition.
+                map.panTo(bounds.getCenter());
+                map.setLevel(finalLevel, { animate: true });
+            }
 
             function startLocationPolling() {
                 if (locationWatchId) {
@@ -349,8 +363,8 @@
                         startLocation = newPosition;
                         setStartMarker();
 
-                        // Call the dynamic map view adjustment whenever the position updates.
-                        adjustMapView();
+                        // Call the new, smoother map update function whenever the position changes.
+                        updateMapViewSmoothly();
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
@@ -501,8 +515,6 @@
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
-                        // We no longer set the bounds here. The new `adjustMapView`
-                        // function, called in the location watcher, handles this dynamically.
 
                     } else {
                         if (timerContainer) {
