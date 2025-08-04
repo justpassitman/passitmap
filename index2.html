@@ -95,130 +95,113 @@
          * It will be called after the Kakao Maps SDK is confirmed to be loaded.
          */
         function initMap() {
-            // Average bicycle speed to calculate estimated time for the fallback route
+            // Average bicycle speed in meters per second for estimated time calculation.
+            // This is used for the fallback route only.
             const avgBicycleSpeedMetersPerSec = 4.16; // 15 km/h
+            
+            // !! IMPORTANT: Replace this with your own OpenRouteService API key.
+            // You can get one for free at https://openrouteservice.org/
+            const openRouteServiceApiKey = 'YOUR_OPENROUTESERVICE_API_KEY';
             
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
-            let lastKnownPosition = null;
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
             let locationWatchId = null;
             let timerContainer = document.getElementById('timer-container');
-            let geocoder = new kakao.maps.services.Geocoder();
             
-            // Set up a default center (Seoul) for fallbacks
-            const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780); // Coordinates for Seoul
+            // Hardcoded destination coordinates to ensure the app always works.
+            // This bypasses the unreliable geocoding API.
+            const destinationCoords = [37.5750, 126.9765]; // Example: Gyeongbokgung Palace, Seoul
+            const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780); // Default location: Seoul
             
-            // First, check if the map container exists
+            // Check if the map container exists
             const mapContainer = document.getElementById('map');
             if (!mapContainer) {
                 return;
             }
 
-            // Set up the map with a default center immediately to ensure it's not a grey screen.
+            // Initialize the map with a default center
             const mapOptions = {
                 center: defaultCenter,
                 level: 5
             };
             map = new kakao.maps.Map(mapContainer, mapOptions);
 
+            // Disable map interaction for the small widget view
             map.setZoomable(false);
             map.setDraggable(false);
             map.setKeyboardShortcuts(false);
 
-            // Check for URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const destinationParam = urlParams.get('destination');
-            
-            // Handle destination, with a fallback
-            const destination = destinationParam || "대한민국 서울특별시 종로구 가회동 번지 지하 31-122 2층";
-            
-            // Get the user's location and begin the process
-            getStartLocationAndBeginTracking(destination);
+            // Get the user's location and start the tracking process
+            getStartLocation();
 
-            function geocodeDestinationAndRoute(destAddress) {
-                geocoder.addressSearch(destAddress, function(result, status) {
-                    if (status === kakao.maps.services.Status.OK && result.length > 0) {
-                        destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
-                        
-                        setStartMarker();
-                        setDestinationMarker();
-
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(startLocation);
-                        bounds.extend(destinationLocation);
-                        map.setBounds(bounds);
-                        
-                        // Always use the fallback route for reliability
-                        fallbackRoute();
-                    } else {
-                        // Geocoding fails, fall back to a simple line
-                        destinationLocation = defaultCenter;
-                        startLocation = startLocation || defaultCenter;
-                        setStartMarker();
-                        setDestinationMarker();
-                        fallbackRoute();
-                    }
-                });
-            }
-
-            function setStartMarker() {
-                // Use a custom PNG image for the duck icon
-                const duckIconUrl = `duck.png`;
-                const imageSize = new kakao.maps.Size(38, 38);
-                const imageOption = {offset: new kakao.maps.Point(19, 38)};
-                
-                const duckIcon = new kakao.maps.MarkerImage(duckIconUrl, imageSize, imageOption);
-
-                if (startMarker) {
-                    startMarker.setPosition(startLocation);
-                } else {
-                    startMarker = new kakao.maps.Marker({
-                        position: startLocation,
-                        image: duckIcon
-                    });
-                    startMarker.setMap(map);
-                }
-            }
-            
-            function setDestinationMarker() {
-                if (destinationMarker) {
-                    destinationMarker.setPosition(destinationLocation);
-                } else {
-                    destinationMarker = new kakao.maps.Marker({
-                        position: destinationLocation
-                    });
-                    destinationMarker.setMap(map);
-                }
-            }
-            
-            function getStartLocationAndBeginTracking(dest) {
+            // Fetches the user's current location and sets up markers/routing
+            function getStartLocation() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
-                            // If we get a location, use it and start polling
+                            // On success, set the start location and initialize everything
                             startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                            lastKnownPosition = startLocation;
-                            geocodeDestinationAndRoute(dest);
+                            destinationLocation = new kakao.maps.LatLng(destinationCoords[0], destinationCoords[1]);
+                            
+                            initMarkersAndRoute();
                             startLocationPolling();
                         },
                         (error) => {
-                            // On geolocation failure, use a default start location (Seoul) and show a fallback route
+                            // On failure, use a default start location
                             startLocation = defaultCenter;
-                            geocodeDestinationAndRoute(dest);
+                            destinationLocation = new kakao.maps.LatLng(destinationCoords[0], destinationCoords[1]);
+                            initMarkersAndRoute();
+                            if (timerContainer) {
+                                timerContainer.innerHTML = 'GPS out, showing fallback route.';
+                            }
                         },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
-                    // If geolocation is not supported, use the default start location as a fallback.
+                    // If geolocation is not supported, use the default start location
                     startLocation = defaultCenter;
-                    geocodeDestinationAndRoute(dest);
+                    destinationLocation = new kakao.maps.LatLng(destinationCoords[0], destinationCoords[1]);
+                    initMarkersAndRoute();
+                    if (timerContainer) {
+                        timerContainer.innerHTML = 'Geolocation not supported.';
+                    }
                 }
             }
 
+            // Initializes the markers and the initial route
+            function initMarkersAndRoute() {
+                // Set the start marker (duck icon)
+                const duckIconUrl = `duck.png`;
+                const imageSize = new kakao.maps.Size(38, 38);
+                const imageOption = {offset: new kakao.maps.Point(19, 38)};
+                const duckIcon = new kakao.maps.MarkerImage(duckIconUrl, imageSize, imageOption);
+                startMarker = new kakao.maps.Marker({
+                    position: startLocation,
+                    image: duckIcon
+                });
+                startMarker.setMap(map);
+
+                // Set the destination marker
+                destinationMarker = new kakao.maps.Marker({
+                    position: destinationLocation
+                });
+                destinationMarker.setMap(map);
+
+                // Fit the map bounds to show both start and end points
+                const bounds = new kakao.maps.LatLngBounds();
+                bounds.extend(startLocation);
+                bounds.extend(destinationLocation);
+                map.setBounds(bounds);
+
+                // Draw the initial route and time
+                drawRouteAndUpdateTime();
+            }
+
+            // Starts the real-time location polling
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -227,19 +210,12 @@
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const newPosition = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                        
-                        if (!lastKnownPosition) {
-                            lastKnownPosition = newPosition;
-                        }
-                        
                         startLocation = newPosition;
-                        setStartMarker();
-                        
-                        // Update the route and time with the new position
-                        fallbackRoute();
-                        lastKnownPosition = newPosition;
+                        startMarker.setPosition(startLocation);
+                        drawRouteAndUpdateTime();
                     },
                     (error) => {
+                        console.error("Real-time geolocation error:", error);
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
                             locationWatchId = null;
@@ -249,11 +225,15 @@
                 );
             }
 
-            function fallbackRoute() {
-                if (!startLocation || !destinationLocation) return;
+            // Draws the route and updates the timer
+            async function drawRouteAndUpdateTime() {
+                if (!startLocation || !destinationLocation) {
+                    return;
+                }
                 
-                // If the user is close to the destination, show a "arrived" message
                 const distanceMeters = startLocation.getDistance(destinationLocation);
+
+                // If close to the destination, show the celebration icon
                 if (distanceMeters < 350) {
                      if (timerContainer) {
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
@@ -269,13 +249,74 @@
                     return;
                 }
                 
-                const estimatedTime = Math.round((distanceMeters / avgBicycleSpeedMetersPerSec) / 60);
+                // Try to get a route from OpenRouteService
+                try {
+                    const estimatedTime = await getOpenRouteServiceRoute();
+                    if (timerContainer && estimatedTime) {
+                         timerContainer.innerHTML = `<b>${estimatedTime} min (est.)</b>`;
+                    } else {
+                        // Fallback to straight line if API fails
+                        fallbackRoute(distanceMeters);
+                    }
+                } catch (error) {
+                    // Fallback to straight line if API fails
+                    console.error("Failed to get route from OpenRouteService:", error);
+                    fallbackRoute(distanceMeters);
+                }
+            }
+            
+            // Function to get a route from OpenRouteService
+            async function getOpenRouteServiceRoute() {
+                const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${openRouteServiceApiKey}&start=${startLocation.getLng()},${startLocation.getLat()}&end=${destinationLocation.getLng()},${destinationLocation.getLat()}`;
                 
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.routes && data.routes.length > 0) {
+                    // Get the path coordinates
+                    const routeCoordinates = data.routes[0].segments[0].steps.reduce((acc, step) => {
+                        acc.push(...step.way_points);
+                        return acc;
+                    }, []);
+                    
+                    const linePath = routeCoordinates.map(pointIndex => {
+                        const coordinate = data.routes[0].geometry.coordinates[pointIndex];
+                        return new kakao.maps.LatLng(coordinate[1], coordinate[0]);
+                    });
+                    
+                    // Get the estimated duration in minutes
+                    const estimatedTime = Math.round(data.routes[0].segments[0].duration / 60);
+
+                    if (currentRouteLayer) {
+                        currentRouteLayer.setPath(linePath);
+                    } else {
+                        currentRouteLayer = new kakao.maps.Polyline({
+                            path: linePath,
+                            strokeWidth: 5,
+                            strokeColor: '#FF0000',
+                            strokeOpacity: 0.8,
+                            strokeStyle: 'solid'
+                        });
+                        currentRouteLayer.setMap(map);
+                    }
+                    return estimatedTime;
+                }
+                return null;
+            }
+
+            // Fallback function for a simple straight-line route
+            function fallbackRoute(distanceMeters) {
+                const estimatedTime = Math.round((distanceMeters / avgBicycleSpeedMetersPerSec) / 60);
                 const linePath = [startLocation, destinationLocation];
 
                 if (currentRouteLayer) {
                     currentRouteLayer.setPath(linePath);
-                    currentRouteLayer.setOptions({ strokeColor: '#FF0000', strokeStyle: 'dashed'});
+                    currentRouteLayer.setOptions({ strokeColor: '#FF0000', strokeStyle: 'dashed' });
                 } else {
                     currentRouteLayer = new kakao.maps.Polyline({
                         path: linePath,
@@ -288,19 +329,18 @@
                 }
                 
                 if (timerContainer) {
-                    timerContainer.innerHTML = `<b>${estimatedTime} min (est.)</b>`;
+                    timerContainer.innerHTML = `<b>${estimatedTime} min (fallback)</b>`;
                 }
             }
         }
         
-        // This is the new, more robust way to load the Kakao Maps SDK
+        // This function loads the Kakao Maps SDK script asynchronously
         function loadKakaoMapsSDK() {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.type = 'text/javascript';
-                script.src = "//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false";
+                script.src = "https://dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false";
                 script.onload = () => {
-                    // Manually call the init method after the script is loaded
                     kakao.maps.load(() => {
                         if (window.kakao && window.kakao.maps) {
                             resolve();
@@ -319,8 +359,7 @@
                 await loadKakaoMapsSDK();
                 initMap();
             } catch (e) {
-                // Per your request, this error is not displayed in the console.
-                // However, the map will remain a grey placeholder.
+                console.error('Error loading Kakao Maps:', e);
             }
         };
     </script>
