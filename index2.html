@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duck Delivery Widget (Kakao Maps)</title>
+    <title>Duck Delivery Livestream Widget</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -82,6 +82,7 @@
     </style>
     <!--
         Kakao JavaScript API key provided by the user.
+        The `libraries=services` part is essential for geocoding.
     -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
@@ -96,10 +97,10 @@
 
     <script>
         (function() {
-            // OpenRouteService API key provided by the user.
+            // OpenRouteService API key from the user's original code.
             const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
             
-            // Kakao REST API key provided by the user.
+            // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 300;
 
@@ -120,7 +121,11 @@
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 9
+                    level: 9,
+                    draggable: false,
+                    scrollwheel: false,
+                    disableDoubleClick: true,
+                    disableDoubleClickZoom: true
                 };
                 map = new kakao.maps.Map(mapContainer, mapOption);
 
@@ -140,7 +145,10 @@
                     startMarker.setMap(null);
                 }
 
-                const imageSrc = 'https://s3.ap-northeast-2.amazonaws.com/kakao.maps.daum.net/images/duck_1.png';
+                // Using a placeholder image for the duck, as local files are not accessible in the preview.
+                // Replace 'https://placehold.co/40x40/000000/ffffff?text=%F0%9F%A6%86' with your local 'duck.png'
+                // like this: 'duck.png' when running the file locally.
+                const imageSrc = 'https://placehold.co/40x40/000000/ffffff?text=%F0%9F%A6%86';
                 const imageSize = new kakao.maps.Size(40, 40);
                 const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
@@ -151,16 +159,6 @@
                     position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                     image: markerImage
                 });
-
-                const content = '<div class="p-2 bg-white rounded-md shadow-md text-sm">Your current location</div>';
-
-                const infowindow = new kakao.maps.InfoWindow({
-                    position : new kakao.maps.LatLng(startLocation[0], startLocation[1]), 
-                    content : content,
-                    removable : true
-                });
-
-                infowindow.open(map, startMarker);
             }
 
             async function tryGeocodeWithKakao(query) {
@@ -250,13 +248,9 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
-                    console.log("Attempting geocode with Kakao API...");
                     foundDestination = await tryGeocodeWithKakao(destination);
 
-                    if (foundDestination) {
-                        console.log("Kakao API found a match.");
-                    } else {
-                        console.log("Kakao API failed. Falling back to OpenRouteService...");
+                    if (!foundDestination) {
                         foundDestination = await tryGeocodeWithORS(destination);
                         if (!foundDestination) {
                              const addressParts = destination.split(' ');
@@ -284,15 +278,6 @@
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
-                        const content = `<div class="p-2 bg-white rounded-md shadow-md text-sm">${foundDestination.label}</div>`;
-                        
-                        const infowindow = new kakao.maps.InfoWindow({
-                            position : new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]), 
-                            content : content,
-                            removable : true
-                        });
-                        infowindow.open(map, destinationMarker);
-
                         const bounds = new kakao.maps.LatLngBounds();
                         bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                         bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
@@ -302,23 +287,15 @@
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
-                        const defaultMessage = "Address not found. 🤯";
-                        const infowindow = new kakao.maps.InfoWindow({
-                            position: new kakao.maps.LatLng(startLocation[0] || 37.5665, startLocation[1] || 126.9780),
-                            content: `<div class="p-2 bg-white rounded-md shadow-md text-sm">${defaultMessage}</div>`,
-                            removable: true
-                        });
-                        infowindow.open(map);
+                        if (timerContainer) {
+                            timerContainer.innerHTML = 'Address not found. 🤯';
+                        }
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
-                    const infowindow = new kakao.maps.InfoWindow({
-                        position: new kakao.maps.LatLng(startLocation[0] || 37.5665, startLocation[1] || 126.9780),
-                        content: `<div class="p-2 bg-white rounded-md shadow-md text-sm">${errorMessage}</div>`,
-                        removable: true
-                    });
-                    infowindow.open(map);
+                    if (timerContainer) {
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
+                    }
                 }
             }
 
@@ -455,7 +432,7 @@
                         const errorData = await response.json().catch(() => ({}));
                         const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
                         if (response.status === 403) {
-                             throw new Error("OpenRouteService API key is valid but may not be properly configured for this domain or service. Please check your dashboard.");
+                             throw new Error("OpenRouteService API key is invalid.");
                         }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
@@ -511,8 +488,6 @@
                 }
             }
 
-            // The correct way to initialize the Kakao Maps is to use kakao.maps.load()
-            // to ensure the library is fully loaded and ready before calling any functions that use it.
             if (typeof kakao !== 'undefined' && kakao.maps) {
                 kakao.maps.load(function() {
                     init();
