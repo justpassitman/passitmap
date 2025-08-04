@@ -73,7 +73,8 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services"></script>
+    <!-- Kakao Maps SDK with the 'services' library for geocoding -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -85,9 +86,20 @@
     </div>
     
     <script>
+        // Use an onload callback for the Kakao Maps SDK to ensure 'kakao' is defined.
+        window.onload = function() {
+            // Wait until the SDK is loaded before executing the main logic.
+            kakao.maps.load(() => {
+                init();
+            });
+        };
+
+        // Immediately invoke function expression to keep variables out of the global scope.
         (function() {
+            // NOTE: Replace with your actual Openrouteservice API key.
             const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
+            // Minimum distance in meters before a new API call is made to save quota.
             const minDistanceForApiCall = 500;
             const avgBicycleSpeedMetersPerSec = 4.16; // 15 km/h
             
@@ -130,7 +142,8 @@
             }
             
             function setStartMarker() {
-                 const imageSrc = 'duck.png',
+                 // Use a placeholder image to ensure the duck marker always appears
+                 const imageSrc = 'https://placehold.co/38x38/000000/FFFFFF?text=🦆',
                        imageSize = new kakao.maps.Size(38, 38),
                        imageOption = {offset: new kakao.maps.Point(19, 38)};
                 
@@ -274,6 +287,32 @@
                 }
                 return points;
             }
+            
+            function fallbackRoute() {
+                // FALLBACK: Calculate straight-line distance and time if API fails
+                const straightDistance = startLocation.getDistance(destinationLocation);
+                const estimatedTime = Math.round((straightDistance / avgBicycleSpeedMetersPerSec) / 60);
+                
+                const linePath = [startLocation, destinationLocation];
+
+                if (currentRouteLayer) {
+                    currentRouteLayer.setPath(linePath);
+                    currentRouteLayer.setOptions({ strokeColor: '#FF0000', strokeStyle: 'dashed'});
+                } else {
+                    currentRouteLayer = new kakao.maps.Polyline({
+                        path: linePath,
+                        strokeWidth: 5,
+                        strokeColor: '#FF0000',
+                        strokeOpacity: 0.8,
+                        strokeStyle: 'dashed'
+                    });
+                    currentRouteLayer.setMap(map);
+                }
+                
+                if (timerContainer) {
+                    timerContainer.innerHTML = `<b>${estimatedTime} min (est.)</b>`;
+                }
+            }
 
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
@@ -316,10 +355,9 @@
                     });
 
                     if (!response.ok) {
+                        // Throw an error to trigger the catch block and use the fallback
                         const errorData = await response.json().catch(() => ({}));
-                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
-                        // Fallback logic if the primary API call fails
-                        throw new Error(errorMessage);
+                        throw new Error(`API request failed with status: ${response.status} and message: ${errorData.error?.message || 'unknown'}.`);
                     }
 
                     const data = await response.json();
@@ -334,6 +372,7 @@
 
                         if (currentRouteLayer) {
                             currentRouteLayer.setPath(linePath);
+                            currentRouteLayer.setOptions({ strokeColor: '#0066FF', strokeStyle: 'solid'});
                         } else {
                             currentRouteLayer = new kakao.maps.Polyline({
                                 path: linePath,
@@ -357,34 +396,16 @@
                         map.setBounds(bounds);
 
                     } else {
-                         throw new Error("🤯 No route found");
+                         // Even if the response is OK, if there's no route data, use fallback.
+                         console.warn("API response was OK but no route data was found. Using fallback.");
+                         handleError("Routing API Failed. Using fallback.");
+                         fallbackRoute();
                     }
 
                 } catch (error) {
-                    console.error("Routing Error:", error);
-                    // FALLBACK: Calculate straight-line distance and time if API fails
-                    const straightDistance = startLocation.getDistance(destinationLocation);
-                    const estimatedTime = Math.round((straightDistance / avgBicycleSpeedMetersPerSec) / 60);
-                    
-                    const linePath = [startLocation, destinationLocation];
-
-                    if (currentRouteLayer) {
-                        currentRouteLayer.setPath(linePath);
-                        currentRouteLayer.setOptions({ strokeColor: '#FF0000', strokeStyle: 'dashed'});
-                    } else {
-                        currentRouteLayer = new kakao.maps.Polyline({
-                            path: linePath,
-                            strokeWidth: 5,
-                            strokeColor: '#FF0000',
-                            strokeOpacity: 0.8,
-                            strokeStyle: 'dashed'
-                        });
-                        currentRouteLayer.setMap(map);
-                    }
-                    
-                    if (timerContainer) {
-                        timerContainer.innerHTML = `<b>${estimatedTime} min (est.)</b>`;
-                    }
+                    console.error("Full Routing Error Details:", error);
+                    handleError("Routing API Failed. Using fallback.");
+                    fallbackRoute();
                 }
             }
 
@@ -393,8 +414,6 @@
                       timerContainer.innerHTML = message;
                  }
             }
-            
-            window.addEventListener('load', init);
         })();
     </script>
 </body>
