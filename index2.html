@@ -82,7 +82,6 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services,clusterer,drawing"></script>
 
     <script>
-        // Use a function to ensure the Kakao Map SDK is fully loaded
         window.kakao.maps.load(() => {
             const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
             const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
@@ -148,7 +147,6 @@
                     userMarker = new kakao.maps.Marker({
                         map: map,
                         image: new kakao.maps.MarkerImage(
-                            // This is the line that has been changed to use your file
                             'duck.png',
                             new kakao.maps.Size(38, 38),
                             { offset: new kakao.maps.Point(19, 38) }
@@ -186,26 +184,37 @@
                 console.error(error);
             }
 
+            // The geocoding function has been updated with a second fallback
             function geocodeAddress(address) {
                 return new Promise((resolve, reject) => {
                     const geocoder = new kakao.maps.services.Geocoder();
                     
-                    const searchAndResolve = (query) => {
-                        geocoder.addressSearch(query, function(result, status) {
-                            if (status === kakao.maps.services.Status.OK) {
+                    const searchAndResolve = (query, onFail) => {
+                        geocoder.addressSearch(query, (result, status) => {
+                            if (status === kakao.maps.services.Status.OK && result.length > 0) {
                                 resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
                             } else {
-                                reject(new Error(`Could not geocode address: ${query}`));
+                                onFail();
                             }
                         });
                     };
                     
-                    searchAndResolve(address).catch(() => {
-                        const simplifiedAddress = address.replace(/\s\d+호$/, '');
-                        if (simplifiedAddress !== address) {
-                            searchAndResolve(simplifiedAddress);
+                    // Attempt 1: Full address
+                    searchAndResolve(address, () => {
+                        // Attempt 2: Remove unit number (e.g., '103호')
+                        const simplifiedAddress1 = address.replace(/\s\d+호$/, '');
+                        if (simplifiedAddress1 !== address) {
+                            searchAndResolve(simplifiedAddress1, () => {
+                                // Attempt 3: Remove building number (e.g., '28-21번지')
+                                const simplifiedAddress2 = simplifiedAddress1.replace(/\s\d+-\d+번지$/, '');
+                                if (simplifiedAddress2 !== simplifiedAddress1) {
+                                    searchAndResolve(simplifiedAddress2, () => reject(new Error('All geocoding attempts failed.')));
+                                } else {
+                                    reject(new Error('Geocoding attempts failed after simplification 1.'));
+                                }
+                            });
                         } else {
-                            reject(new Error(`Could not geocode address: ${address}`));
+                            reject(new Error('Geocoding failed with the initial address.'));
                         }
                     });
                 });
