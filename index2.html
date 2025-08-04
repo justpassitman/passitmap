@@ -124,6 +124,18 @@
                 return;
             }
 
+            // Set up the map with a default center (Seoul) immediately to ensure it's not a grey screen.
+            const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780); // Coordinates for Seoul
+            const mapOptions = {
+                center: defaultCenter,
+                level: 5
+            };
+            map = new kakao.maps.Map(mapContainer, mapOptions);
+
+            map.setZoomable(false);
+            map.setDraggable(false);
+            map.setKeyboardShortcuts(false);
+
             // Check for URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             let destination = urlParams.get('destination');
@@ -133,23 +145,13 @@
                 destination = "대한민국 서울특별시 종로구 가회동 번지 지하 31-122 2층";
             }
             
-            // First, geocode the destination to get the initial destination location
+            // Geocode the destination to get the destination location.
             geocoder.addressSearch(destination, function(result, status) {
                 if (status === kakao.maps.services.Status.OK && result.length > 0) {
                     destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
                     
-                    // Set up the map with the destination as the initial center
-                    const mapOptions = {
-                        center: destinationLocation,
-                        level: 5
-                    };
-                    map = new kakao.maps.Map(mapContainer, mapOptions);
-
-                    map.setZoomable(false);
-                    map.setDraggable(false);
-                    map.setKeyboardShortcuts(false);
-                    
-                    // Set destination marker immediately
+                    // Update map center and set destination marker now that we have the location
+                    map.setCenter(destinationLocation);
                     setDestinationMarker();
                     
                     // Now, try to get the user's location
@@ -157,6 +159,9 @@
 
                 } else {
                     // No console errors, per request.
+                    // Even if geocoding fails, the map will still be visible at the default center.
+                    destinationLocation = defaultCenter;
+                    getStartLocationAndBeginTracking();
                 }
             });
 
