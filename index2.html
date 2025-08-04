@@ -83,8 +83,13 @@
 
     <script>
         window.kakao.maps.load(() => {
+            // NOTE: The Javascript key is used for the Kakao Maps SDK, which is loaded above.
             const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
+            
+            // 🚨 IMPORTANT: Replace the placeholder below with your own REST API key.
+            // This key is used to authenticate requests to the Kakao Mobility API.
             const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
+
             const MIN_DISTANCE_FOR_API_CALL = 350;
 
             let map = null;
@@ -190,7 +195,7 @@
                         displayRouteInfo(routeData);
                     } catch (error) {
                         console.error("Error fetching route:", error);
-                        timerContainer.innerHTML = `🤯 Route API failed. Try again.`;
+                        timerContainer.innerHTML = `🤯 Failed to get bicycle route.`;
                     }
                 }
             }
