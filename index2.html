@@ -79,12 +79,12 @@
         </div>
     </div>
     
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_JS_KEY&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services"></script>
 
     <script>
-        // === IMPORTANT: Replace these with your actual keys ===
-        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';     // Your JavaScript key for map display
-        const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63'; // Your REST API key for directions
+        // === API keys provided by the user ===
+        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
+        const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
 
         // The minimum distance the user must move (in meters) before a new API call is made.
         const MIN_DISTANCE_FOR_API_CALL = 350;
@@ -105,27 +105,34 @@
         function init() {
             // Correctly initialize the KakaoMap
             timerContainer = document.getElementById('timer-container');
-            map = new kakao.maps.Map(document.getElementById('map'), {
-                center: new kakao.maps.LatLng(37.566826, 126.9786567), // Default to Seoul
-                level: 3,
-                disableDoubleClick: true,
-                draggable: true,
-                scrollwheel: false,
-                keyboardShortcuts: false
-            });
-
-            // Geocode the destination once and start live tracking
-            geocodeAddress(destinationAddress).then(coords => {
-                destinationCoords = coords;
-                destinationMarker = new kakao.maps.Marker({
-                    map: map,
-                    position: destinationCoords
+            const mapContainer = document.getElementById('map');
+            
+            // Check if the map container exists before initializing the map
+            if (mapContainer) {
+                map = new kakao.maps.Map(mapContainer, {
+                    center: new kakao.maps.LatLng(37.566826, 126.9786567), // Default to Seoul
+                    level: 3,
+                    disableDoubleClick: true,
+                    draggable: true,
+                    scrollwheel: false,
+                    keyboardShortcuts: false
                 });
-                startLiveTracking();
-            }).catch(error => {
-                timerContainer.innerHTML = 'Destination not found. 🤯';
-                console.error(error);
-            });
+
+                // Geocode the destination once and start live tracking
+                geocodeAddress(destinationAddress).then(coords => {
+                    destinationCoords = coords;
+                    destinationMarker = new kakao.maps.Marker({
+                        map: map,
+                        position: destinationCoords
+                    });
+                    startLiveTracking();
+                }).catch(error => {
+                    timerContainer.innerHTML = 'Destination not found. 🤯';
+                    console.error(error);
+                });
+            } else {
+                console.error("Map container element not found. Make sure an element with id='map' exists.");
+            }
         }
         
         function startLiveTracking() {
