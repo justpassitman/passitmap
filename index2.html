@@ -479,27 +479,18 @@
                 }
             }
 
-            window.addEventListener('load', () => {
-                const kakaoScriptElement = document.querySelector('script[src*="dapi.kakao.com"]');
-                if (kakaoScriptElement) {
-                    const appKey = kakaoScriptElement.src.split('appkey=')[1].split('&')[0];
-                    if (appKey === "00a03dac8488d12731e4021756938e72" || !appKey) {
-                        kakao.maps.load(() => {
-                           init();
-                        });
-                    } else {
-                        const mapContainer = document.getElementById('map');
-                        if (mapContainer) {
-                            mapContainer.innerHTML = '<div class="error-message">**Kakao JavaScript API key is missing or incorrect.**<br><br>Please verify the `appkey` in the script tag is correct.</div>';
-                        }
-                    }
-                } else {
-                    const mapContainer = document.getElementById('map');
-                    if (mapContainer) {
-                        mapContainer.innerHTML = '<div class="error-message">**Kakao Maps API failed to load.**<br><br>The script tag for the Kakao Maps SDK is not present.</div>';
-                    }
+            // The correct way to initialize the Kakao Maps is to use kakao.maps.load()
+            // to ensure the library is fully loaded and ready before calling any functions that use it.
+            if (typeof kakao !== 'undefined' && kakao.maps) {
+                kakao.maps.load(function() {
+                    init();
+                });
+            } else {
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.innerHTML = '<div class="error-message">Kakao Maps API failed to load. Please check your script tag and API key.</div>';
                 }
-            });
+            }
         })();
     </script>
 </body>
