@@ -86,8 +86,7 @@
             // NOTE: The Javascript key is used for the Kakao Maps SDK, which is loaded above.
             const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
             
-            // 🚨 IMPORTANT: Replace the placeholder below with your own REST API key.
-            // This key is used to authenticate requests to the Kakao Mobility API.
+            // The REST API key for the Kakao Mobility API.
             const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
 
             const MIN_DISTANCE_FOR_API_CALL = 350;
@@ -190,12 +189,22 @@
                 if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
                     lastApiCallPosition = currentCoords;
                     try {
+                        // First, try to get a bicycle route
                         const routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
                         drawRoute(routeData);
-                        displayRouteInfo(routeData);
-                    } catch (error) {
-                        console.error("Error fetching route:", error);
-                        timerContainer.innerHTML = `🤯 Failed to get bicycle route.`;
+                        displayRouteInfo(routeData, 'bicycle');
+                    } catch (bicycleError) {
+                        console.error("Bicycle route failed:", bicycleError);
+                        // If bicycle route fails, try to get a car route
+                        try {
+                            const routeData = await fetchCarRoute(currentCoords, destinationCoords);
+                            drawRoute(routeData);
+                            displayRouteInfo(routeData, 'car');
+                        } catch (carError) {
+                            console.error("Car route also failed:", carError);
+                            // If both fail, display a generic error message
+                            timerContainer.innerHTML = `🤯 Could not find a route.`;
+                        }
                     }
                 }
             }
@@ -251,7 +260,7 @@
                 return R * c;
             }
 
-            // --- The corrected fetchBicycleRoute function starts here ---
+            // --- Fetches a bicycle route using the Kakao Mobility API ---
             async function fetchBicycleRoute(start, end) {
                 const url = 'https://apis-navi.kakaomobility.com/v1/directions';
                 const headers = {
@@ -267,7 +276,7 @@
                         x: end.getLng(),
                         y: end.getLat()
                     },
-                    priority: 'BICYCLE' // Correct parameter for bicycle route
+                    priority: 'BICYCLE' // Specifies a bicycle route
                 };
 
                 const response = await fetch(url, {
@@ -281,7 +290,37 @@
                 }
                 return response.json();
             }
-            // --- The corrected fetchBicycleRoute function ends here ---
+
+            // --- Fetches a car route using the Kakao Mobility API ---
+            async function fetchCarRoute(start, end) {
+                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
+                const headers = {
+                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
+                    'Content-Type': 'application/json'
+                };
+                const body = {
+                    origin: {
+                        x: start.getLng(),
+                        y: start.getLat()
+                    },
+                    destination: {
+                        x: end.getLng(),
+                        y: end.getLat()
+                    },
+                    priority: 'TRAFFIC' // Specifies a car route with traffic
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
+                }
+                return response.json();
+            }
 
             function drawRoute(routeData) {
                 if (polyline) polyline.setMap(null);
@@ -312,14 +351,14 @@
                 polyline.setMap(map);
             }
 
-            function displayRouteInfo(routeData) {
+            // --- displayRouteInfo now accepts a routeType parameter to add an emoji ---
+            function displayRouteInfo(routeData, routeType) {
                 const route = routeData.routes[0];
                 const duration = Math.round(route.summary.duration / 60);
-                timerContainer.innerHTML = `<b>${duration} min</b>`;
+                let emoji = routeType === 'car' ? '🚗' : '';
+                timerContainer.innerHTML = `<b>${duration} min ${emoji}</b>`;
             }
             
-            // === THIS IS THE KEY FIX ===
-            // Delay the initialization slightly to ensure the map container has been rendered.
             setTimeout(init, 100);
         });
     </script>
