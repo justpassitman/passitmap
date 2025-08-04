@@ -16,20 +16,21 @@
 
         .widget-container {
             /*
-             * The background of the entire widget container is now semi-transparent.
+             * Increased the container width for a better view.
              */
             background-color: rgba(255, 255, 255, 0.5);
             position: fixed;
             top: 20px;
             right: 20px;
-            width: 150px;
-            height: 188px;
+            width: 250px; /* Increased width */
+            height: 300px; /* Increased height for more map space */
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            position: relative; /* Added relative positioning for the timer */
         }
 
         .map-container {
@@ -47,11 +48,13 @@
         }
         
         /*
-         * This CSS rule hides the entire Kakao Maps attribution box, including the logo and copyright links,
-         * at the bottom-left of the map by targeting its parent container.
+         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
          * The !important flag is used to ensure it overrides the inline styles from the SDK.
          */
-        #map .View_bottom_left {
+        #map .kakao-maps-sdk,
+        #map .View_logo,
+        #map .View_copyright,
+        #map .View_copyright a {
             display: none !important;
         }
 
@@ -102,7 +105,7 @@
 <body class="bg-gray-100">
 
     <div class="widget-container">
-        <div class="map-container rounded-b-xl">
+        <div class="map-container">
             <div id="map"></div>
             <div id="timer-container" class="timer-container"></div>
         </div>
@@ -116,6 +119,7 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 300;
+            const zoomPaddingFactor = 0.2; // This controls how much to "pad" the bounds, making the zoom tighter. 0.2 means 20% less padding on each side.
 
             let map = null;
             let startLocation = null;
@@ -128,13 +132,16 @@
             let locationWatchId = null;
             let timerContainer = null;
 
+            /**
+             * Initializes the map and fetches the destination from URL parameters.
+             */
             function init() {
                 timerContainer = document.getElementById('timer-container');
 
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 9, 
+                    level: 9,
                     draggable: false,
                     scrollwheel: false,
                     disableDoubleClick: true,
@@ -153,13 +160,18 @@
                 }
             }
 
-            function setStartMarker() {
+            /**
+             * Sets the marker for the starting location (the duck).
+             * @param {Array<number>} newPosition - The new position [latitude, longitude] for the marker.
+             */
+            function setStartMarker(newPosition = startLocation) {
+                if (!newPosition || newPosition.length < 2) return;
+                
                 if (startMarker) {
                     startMarker.setMap(null);
                 }
 
-                // Changed the image source to a relative path to your local 'duck.png' file.
-                // This will work when the file is run from your local machine with the image in the same directory.
+                // Make sure 'duck.png' is in the same directory as this HTML file.
                 const imageSrc = 'duck.png';
                 const imageSize = new kakao.maps.Size(40, 40);
                 const imageOption = { offset: new kakao.maps.Point(20, 40) };
@@ -168,11 +180,19 @@
 
                 startMarker = new kakao.maps.Marker({
                     map: map,
-                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
+                    position: new kakao.maps.LatLng(newPosition[0], newPosition[1]),
                     image: markerImage
                 });
+
+                // Update the global start location
+                startLocation = newPosition;
             }
 
+            /**
+             * Geocodes an address using the Kakao REST API.
+             * @param {string} query - The address to geocode.
+             * @returns {Promise<Object|null>} - A promise that resolves to an object with lat/lng/label, or null on failure.
+             */
             async function tryGeocodeWithKakao(query) {
                 if (!KAKAO_API_KEY) {
                     throw new Error("Kakao REST API key is missing. Geocoding will not work.");
@@ -211,6 +231,11 @@
                 return null;
             }
 
+            /**
+             * Geocodes an address using the OpenRouteService API.
+             * @param {string} query - The address to geocode.
+             * @returns {Promise<Object|null>} - A promise that resolves to an object with lat/lng/label, or null on failure.
+             */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -246,16 +271,10 @@
                 return null;
             }
 
-            // Function to apply a maximum zoom level after a pan or zoom event.
-            function adjustZoomLevel() {
-                // We want to keep a good balance, not too zoomed in, not too far out.
-                // A level of 6 is a good compromise for a small widget showing a city-wide route.
-                const currentLevel = map.getLevel();
-                if (currentLevel > 6) {
-                    map.setLevel(6);
-                }
-            }
-
+            /**
+             * Processes the destination from the URL and starts the geolocation tracking.
+             * @param {string} destination - The destination address.
+             */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -300,20 +319,19 @@
                             position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        map.setBounds(bounds);
+                        // Create initial bounds and pad them for a better view.
+                        const initialBounds = new kakao.maps.LatLngBounds();
+                        initialBounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                        initialBounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
                         
-                        // Immediately adjust the zoom level after setting the bounds to prevent over-zooming out.
-                        adjustZoomLevel();
+                        setMapBoundsWithPadding(initialBounds);
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 🤯';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -324,6 +342,32 @@
                 }
             }
 
+            /**
+             * Adjusts the map bounds with a custom padding to avoid excessive empty space.
+             * @param {kakao.maps.LatLngBounds} bounds - The original bounds to adjust.
+             */
+            function setMapBoundsWithPadding(bounds) {
+                const sw = bounds.getSouthWest();
+                const ne = bounds.getNorthEast();
+
+                const latDiff = ne.getLat() - sw.getLat();
+                const lngDiff = ne.getLng() - sw.getLng();
+
+                const newSwLat = sw.getLat() + latDiff * zoomPaddingFactor;
+                const newSwLng = sw.getLng() + lngDiff * zoomPaddingFactor;
+                const newNeLat = ne.getLat() - latDiff * zoomPaddingFactor;
+                const newNeLng = ne.getLng() - lngDiff * zoomPaddingFactor;
+
+                const newBounds = new kakao.maps.LatLngBounds(
+                    new kakao.maps.LatLng(newSwLat, newSwLng),
+                    new kakao.maps.LatLng(newNeLat, newNeLng)
+                );
+                map.setBounds(newBounds);
+            }
+
+            /**
+             * Starts real-time geolocation tracking for the duck's position.
+             */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -337,11 +381,10 @@
                             lastKnownPosition = newPosition;
                         }
 
-                        const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
+                        // Update duck's position and marker
+                        setStartMarker(newPosition);
 
-                        startLocation = newPosition;
-                        setStartMarker();
-
+                        // Recalculate route and bounds if duck has moved a significant distance
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
 
@@ -363,6 +406,12 @@
                 );
             }
 
+            /**
+             * Calculates the distance between two coordinates in meters using the Haversine formula.
+             * @param {Array<number>} coord1 - [lat, lng] of the first point.
+             * @param {Array<number>} coord2 - [lat, lng] of the second point.
+             * @returns {number} - The distance in meters.
+             */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
@@ -375,6 +424,11 @@
                 return R * c;
             }
 
+            /**
+             * Decodes a Google Maps-style encoded polyline string into an array of LatLng coordinates.
+             * @param {string} encoded - The encoded polyline string.
+             * @returns {Array<Array<number>>} - An array of [lat, lng] coordinate pairs.
+             */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -405,6 +459,9 @@
                 return points;
             }
 
+            /**
+             * Fetches the route and estimated travel time from OpenRouteService and updates the map.
+             */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
@@ -412,6 +469,7 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
 
+                // If close to the destination, show a "completed" message and stop updates.
                 if (distance < 350) {
                     if (timerContainer) {
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
@@ -492,12 +550,10 @@
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
 
-                        const bounds = new kakao.maps.LatLngBounds();
-                        path.forEach(latLng => bounds.extend(latLng));
-                        map.setBounds(bounds);
-                        
-                        // Immediately adjust the zoom level after setting the bounds to prevent over-zooming out.
-                        adjustZoomLevel();
+                        // Create bounds from the path and pad them for a tighter view.
+                        const pathBounds = new kakao.maps.LatLngBounds();
+                        path.forEach(latLng => pathBounds.extend(latLng));
+                        setMapBoundsWithPadding(pathBounds);
 
                     } else {
                         if (timerContainer) {
@@ -517,6 +573,7 @@
                 }
             }
 
+            // Check if Kakao Maps API is loaded and initialize the app
             if (typeof kakao !== 'undefined' && kakao.maps) {
                 kakao.maps.load(function() {
                     init();
