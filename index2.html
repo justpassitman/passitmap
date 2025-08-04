@@ -73,7 +73,8 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <!-- Moved Kakao Maps SDK script to the head and set it to load synchronously before other scripts. -->
+    <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=dad89b90a6acaa5acadc74e2329cab63&libraries=services"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -84,16 +85,14 @@
         </div>
     </div>
     
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
     <script>
         (function() {
-            // !!! IMPORTANT: Replace "YOUR_ORS_API_KEY_HERE" with your ORS API key !!!
+            // Updated API keys as provided by the user.
             const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
-            // !!! IMPORTANT: Replace "YOUR_KAKAO_API_KEY_HERE" with your Kakao API key !!!
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             
-            const minDistanceForApiCall = 500;
+            // The minimum distance in meters the user must travel before a new API call is made.
+            const minDistanceForApiCall = 300;
             
             let map = null;
             let startLocation = null;
@@ -106,18 +105,29 @@
             let locationWatchId = null;
             let destinationName = null;
             let timerContainer = null;
+            let duckIcon = null;
 
             function init() {
-                map = L.map('map', {
-                    zoomControl: false,
-                    attributionControl: false
-                }).setView([0, 0], 2);
-                
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                    subdomains: 'abcd'
-                }).addTo(map);
+                const mapContainer = document.getElementById('map');
+                const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780);
+                const mapOptions = {
+                    center: defaultCenter,
+                    level: 6 
+                };
+
+                map = new kakao.maps.Map(mapContainer, mapOptions);
+                map.setDraggable(false);
+                map.setZoomable(false);
 
                 timerContainer = document.getElementById('timer-container');
+
+                duckIcon = new kakao.maps.MarkerImage(
+                    'duck.png',
+                    new kakao.maps.Size(38, 38),
+                    {
+                        offset: new kakao.maps.Point(19, 38)
+                    }
+                );
 
                 const urlParams = new URLSearchParams(window.location.search);
                 const destination = urlParams.get('destination');
@@ -126,37 +136,24 @@
                     processDestination(destination);
                 } else {
                     startLocation = [37.5665, 126.9780];
-                    map.setView(startLocation, 12);
+                    setStartMarker();
                 }
             }
 
-            function onLocationSuccess(position) {
-                startLocation = [position.coords.latitude, position.coords.longitude];
-                setStartMarker();
-                map.setView(startLocation, 12);
-            }
-
-            function onLocationError(error) {
-                console.error("Geolocation error:", error);
-                startLocation = [37.5665, 126.9780];
-                setStartMarker();
-                map.setView(startLocation, 12);
-            }
-
             function setStartMarker() {
-                 const duckIcon = L.icon({
-                     iconUrl: 'duck.png',
-                     iconSize: [38, 38],
-                     iconAnchor: [19, 38],
-                     popupAnchor: [0, -38]
-                 });
-                
+                 const currentPosition = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
+
                  if (startMarker) {
-                     startMarker.setLatLng(startLocation);
+                     startMarker.setPosition(currentPosition);
                  } else {
-                     startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
-                         .bindPopup("Your current location");
+                     startMarker = new kakao.maps.Marker({
+                         map: map,
+                         position: currentPosition,
+                         image: duckIcon
+                     });
+                     startMarker.setMap(map);
                  }
+                 map.setCenter(currentPosition);
             }
 
             async function tryGeocodeWithKakao(query) {
@@ -262,11 +259,17 @@
                         destinationName = foundDestination.label;
                         
                         setStartMarker();
-                        if (destinationMarker) map.removeLayer(destinationMarker);
-                        destinationMarker = L.marker(destinationLocation).addTo(map);
+                        if (destinationMarker) destinationMarker.setMap(null);
                         
-                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [20, 20] });
+                        destinationMarker = new kakao.maps.Marker({
+                            map: map,
+                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                        });
+
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                        map.setBounds(bounds);
 
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
@@ -274,18 +277,38 @@
                     } else {
                         const defaultMessage = "Address not found. 🤯";
                         if (startMarker) {
-                             startMarker.bindPopup(defaultMessage).openPopup();
+                            // kakao maps popup logic
+                            const infowindow = new kakao.maps.InfoWindow({
+                                content: `<div style="padding:5px;font-size:12px;">${defaultMessage}</div>`
+                            });
+                            infowindow.open(map, startMarker);
                         } else {
-                            L.marker([37.5665, 126.9780]).addTo(map).bindPopup(defaultMessage).openPopup();
+                             const defaultMarker = new kakao.maps.Marker({
+                                map: map,
+                                position: new kakao.maps.LatLng(37.5665, 126.9780)
+                             });
+                             const infowindow = new kakao.maps.InfoWindow({
+                                 content: `<div style="padding:5px;font-size:12px;">${defaultMessage}</div>`
+                             });
+                             infowindow.open(map, defaultMarker);
                         }
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = error.message.includes("API key") ? error.message : "🤯 GPS out or simplify the adress";
+                    let errorMessage = error.message.includes("API key") ? "Invalid API Key 🤯" : "Address not found or routing error occurred.";
+                    
+                    const infowindow = new kakao.maps.InfoWindow({
+                         content: `<div style="padding:5px;font-size:12px;">${errorMessage}</div>`
+                     });
+                     
                     if (startMarker) {
-                        startMarker.bindPopup(errorMessage).openPopup();
+                        infowindow.open(map, startMarker);
                     } else {
-                        L.marker([37.5665, 126.9780]).addTo(map).bindPopup(errorMessage).openPopup();
+                        const defaultMarker = new kakao.maps.Marker({
+                            map: map,
+                            position: new kakao.maps.LatLng(37.5665, 126.9780)
+                        });
+                        infowindow.open(map, defaultMarker);
                     }
                 }
             }
@@ -303,16 +326,17 @@
                             lastKnownPosition = newPosition;
                         }
                         
-                        const lastLatLng = L.latLng(lastKnownPosition);
-                        const newLatLng = L.latLng(newPosition);
-                        const distanceMoved = lastLatLng.distanceTo(newLatLng);
+                        // Use Kakao Maps LatLng objects for distance calculation
+                        const lastLatLng = new kakao.maps.LatLng(lastKnownPosition[0], lastKnownPosition[1]);
+                        const newLatLng = new kakao.maps.LatLng(newPosition[0], newPosition[1]);
+                        const distanceMoved = lastLatLng.getDistance(newLatLng);
                         
                         startLocation = newPosition;
                         setStartMarker();
                         
                         if (lastApiCallPosition) {
-                            const lastApiLatLng = L.latLng(lastApiCallPosition);
-                            const distanceSinceLastCall = lastApiLatLng.distanceTo(newLatLng);
+                            const lastApiLatLng = new kakao.maps.LatLng(lastApiCallPosition[0], lastApiCallPosition[1]);
+                            const distanceSinceLastCall = lastApiLatLng.getDistance(newLatLng);
                             
                             if (distanceSinceLastCall > minDistanceForApiCall) {
                                 lastApiCallPosition = newPosition;
@@ -367,16 +391,17 @@
                     return;
                 }
                 
-                const startLatLng = L.latLng(startLocation);
-                const destinationLatLng = L.latLng(destinationLocation);
-                const distance = startLatLng.distanceTo(destinationLatLng);
+                // Use Kakao Maps LatLng objects for distance calculation
+                const startLatLng = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
+                const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                const distance = startLatLng.getDistance(destinationLatLng);
 
                 if (distance < 350) {
                     if (timerContainer) {
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
                     if (currentRouteLayer) {
-                        map.removeLayer(currentRouteLayer);
+                        currentRouteLayer.setMap(null);
                         currentRouteLayer = null;
                     }
                     if (locationWatchId) {
@@ -421,8 +446,20 @@
                         const durationInSeconds = route.summary.duration;
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
-                        if (currentRouteLayer) map.removeLayer(currentRouteLayer);
-                        currentRouteLayer = L.polyline(routeCoordinates, {color: 'skyblue'}).addTo(map);
+                        const kakaoRoutePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+
+                        if (currentRouteLayer) {
+                             currentRouteLayer.setMap(null);
+                        }
+
+                        currentRouteLayer = new kakao.maps.Polyline({
+                            map: map,
+                            path: kakaoRoutePath,
+                            strokeWeight: 4,
+                            strokeColor: 'skyblue',
+                            strokeOpacity: 0.8,
+                            strokeStyle: 'solid'
+                        });
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
@@ -430,19 +467,21 @@
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
                         
-                        const bounds = L.latLngBounds([startLocation, destinationLocation]);
-                        map.fitBounds(bounds, { padding: [20, 20] });
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(startLatLng);
+                        bounds.extend(destinationLatLng);
+                        map.setBounds(bounds);
 
                     } else {
                            if (timerContainer) {
-                                timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                                timerContainer.innerHTML = "Routing data could not be found.";
                            }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "Routing error occurred.";
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
@@ -451,7 +490,14 @@
                 }
             }
             
-            window.addEventListener('load', init);
+            // This is the correct way to ensure the Kakao Maps library is loaded before calling init()
+            if (typeof kakao !== 'undefined' && kakao.maps) {
+                kakao.maps.load(function() {
+                    init();
+                });
+            } else {
+                window.addEventListener('load', init);
+            }
         })();
     </script>
 </body>
