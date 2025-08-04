@@ -156,11 +156,31 @@
         }
         
         /*
-        * Styling for the destination emoji itself.
+        * Styling for the destination image itself.
         */
-        .destination-emoji {
-            font-size: 1.5rem; /* Large enough to be visible, but scales with container */
-            line-height: 1; /* Prevents extra spacing */
+        .destination-image {
+            width: 100%;
+            height: 100%;
+        }
+
+        /*
+        * New animation for the 'f.png' image to make it balance left and right.
+        */
+        @keyframes balance-f-png {
+            0% {
+                transform: rotate(-45deg);
+            }
+            50% {
+                transform: rotate(45deg);
+            }
+            100% {
+                transform: rotate(-45deg);
+            }
+        }
+
+        .balance-f-png {
+            animation: balance-f-png 2s ease-in-out infinite;
+            transform-origin: center;
         }
     </style>
     <!--
@@ -203,6 +223,8 @@
             let isMapInitialized = false;
 
             const duckImageSrc = 'duck.png';
+            const destinationImageSrc = 'd.png'; // New image for the destination
+            const chickImageSrc = 'f.png'; // New image for the chick
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
@@ -248,8 +270,8 @@
                 if (!startOverlay || !destinationOverlay) return;
                 
                 const duckImageElement = document.getElementById('duck-image');
-                const destinationContainer = document.getElementById('destination-marker-container');
-                if (!duckImageElement || !destinationContainer) return;
+                const destinationImageElement = document.getElementById('destination-image');
+                if (!duckImageElement || !destinationImageElement) return;
 
                 // Calculate duck marker size
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
@@ -258,12 +280,8 @@
                 
                 // Calculate destination marker size
                 const destinationScale = duckScale * destinationSizeMultiplier;
-                destinationContainer.style.width = `${destinationScale}px`;
-                destinationContainer.style.height = `${destinationScale}px`;
-                const emoji = destinationContainer.querySelector('.destination-emoji');
-                if (emoji) {
-                    emoji.style.fontSize = `${destinationScale / 2}px`; // Adjust emoji size based on container
-                }
+                destinationImageElement.parentElement.style.width = `${destinationScale}px`;
+                destinationImageElement.parentElement.style.height = `${destinationScale}px`;
             }
 
             /**
@@ -321,12 +339,11 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 const destinationScale = duckScale * destinationSizeMultiplier;
-                const emojiFontSize = destinationScale / 2; // Dynamic font size
 
-                // The new HTML content for the glowing egg marker.
+                // The new HTML content for the glowing marker using the `d.png` image.
                 const content = `
                     <div id="destination-marker-container" class="glow-green flex items-center justify-center rounded-full" style="width: ${destinationScale}px; height: ${destinationScale}px;">
-                         <span id="destination-emoji" class="destination-emoji" style="font-size: ${emojiFontSize}px;">🥚</span>
+                         <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
                     </div>
                 `;
 
@@ -603,7 +620,7 @@
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
                 const duckImageElement = document.getElementById('duck-image');
-                const destinationEmoji = document.getElementById('destination-emoji');
+                const destinationImageElement = document.getElementById('destination-image');
                 const destinationMarkerContainer = document.getElementById('destination-marker-container');
                 
                 if (distance < 350) {
@@ -623,9 +640,10 @@
                         locationWatchId = null;
                     }
                     
-                    // Change the destination marker from egg to chick and remove the glow
-                    if (destinationEmoji) {
-                        destinationEmoji.innerText = '🐣';
+                    // Change the destination marker from 'd.png' to 'f.png' and add balancing animation
+                    if (destinationImageElement) {
+                        destinationImageElement.src = chickImageSrc;
+                        destinationImageElement.classList.add('balance-f-png');
                         if (destinationMarkerContainer) {
                             destinationMarkerContainer.classList.remove('glow-green');
                         }
@@ -637,9 +655,10 @@
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
-                    // Ensure the marker is an egg and glowing if the user moves away
-                    if (destinationEmoji) {
-                        destinationEmoji.innerText = '🥚';
+                    // Ensure the marker is 'd.png' and glowing if the user moves away
+                    if (destinationImageElement) {
+                        destinationImageElement.src = destinationImageSrc;
+                        destinationImageElement.classList.remove('balance-f-png');
                         if (destinationMarkerContainer) {
                             destinationMarkerContainer.classList.add('glow-green');
                         }
