@@ -82,8 +82,7 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services,clusterer,drawing"></script>
 
     <script>
-        // Use DOMContentLoaded to ensure the HTML structure is ready.
-        document.addEventListener('DOMContentLoaded', () => {
+        window.kakao.maps.load(() => {
             const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
             const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
             const MIN_DISTANCE_FOR_API_CALL = 350;
@@ -99,6 +98,9 @@
             
             const urlParams = new URLSearchParams(window.location.search);
             const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
+            
+            // Default position (Seoul City Hall) to use if GPS fails
+            const DEFAULT_POSITION = new kakao.maps.LatLng(37.566826, 126.9786567);
 
             function init() {
                 timerContainer = document.getElementById('timer-container');
@@ -106,14 +108,14 @@
                 
                 if (mapContainer) {
                     map = new kakao.maps.Map(mapContainer, {
-                        center: new kakao.maps.LatLng(37.566826, 126.9786567),
+                        center: DEFAULT_POSITION,
                         level: 3,
                         disableDoubleClick: true,
                         draggable: true,
                         scrollwheel: false,
                         keyboardShortcuts: false
                     });
-
+                    
                     kakao.maps.event.trigger(map, 'resize');
 
                     geocodeAddress(destinationAddress).then(coords => {
@@ -125,7 +127,7 @@
                         startLiveTracking();
                     }).catch(error => {
                         timerContainer.innerHTML = 'Destination not found. 🤯';
-                        console.error(error);
+                        console.error("Geocoding Error:", error);
                     });
                 } else {
                     console.error("Map container element not found. Make sure an element with id='map' exists.");
@@ -134,24 +136,27 @@
             
             function startLiveTracking() {
                 if (navigator.geolocation) {
-                    locationWatchId = navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
+                    // Try to get the live position first
+                    navigator.geolocation.getCurrentPosition(pos => {
+                        updatePosition(pos);
+                        locationWatchId = navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
+                            enableHighAccuracy: true,
+                            maximumAge: 0
+                        });
+                    }, handleGeolocationError, {
                         enableHighAccuracy: true,
                         maximumAge: 0
                     });
                 } else {
-                    timerContainer.innerHTML = "Geolocation not supported.";
+                    // Fallback to default location and display a message
+                    timerContainer.innerHTML = "GPS not supported. Using default location.";
+                    updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
                 }
             }
             
             async function updatePosition(position) {
-                if (!position || !position.coords) {
-                    timerContainer.innerHTML = "GPS out. 🤯";
-                    console.error("Geolocation data is missing or invalid.");
-                    return;
-                }
-                
                 const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-
+                
                 if (!userMarker) {
                     userMarker = new kakao.maps.Marker({
                         map: map,
@@ -188,14 +193,16 @@
                         displayRouteInfo(routeData);
                     } catch (error) {
                         console.error("Error fetching route:", error);
-                        timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = "🤯 Route API failed. Try again.";
                     }
                 }
             }
 
             function handleGeolocationError(error) {
                 timerContainer.innerHTML = "GPS error. 🤯";
-                console.error(error);
+                console.error("Geolocation API Error:", error);
+                // Fallback to default position
+                updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
             }
 
             function geocodeAddress(address) {
@@ -288,14 +295,8 @@
                 const duration = Math.round(route.summary.duration / 60);
                 timerContainer.innerHTML = `<b>${duration} min</b>`;
             }
-
-            // This is the new, more reliable initialization logic.
-            // It waits for the document to be ready and then checks if the kakao object is available.
-            const mapScript = document.querySelector('script[src*="dapi.kakao.com"]');
-            mapScript.onload = init;
-            if (window.kakao && window.kakao.maps) {
-                init();
-            }
+            
+            init();
         });
     </script>
 </body>
