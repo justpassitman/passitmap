@@ -161,8 +161,8 @@
 
         .quack-text {
             position: absolute;
-            font-size: 10px;
-            /* The font is now extra bold (900) for a thicker appearance. */
+            /* The font size is now doubled to 20px */
+            font-size: 20px;
             font-weight: 900;
             white-space: nowrap;
             animation-duration: 1s;
@@ -170,6 +170,8 @@
             animation-fill-mode: forwards;
             z-index: 3;
             pointer-events: none;
+            /* A thick black outline has been added using text-shadow */
+            text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
         }
 
         .quack-left {
