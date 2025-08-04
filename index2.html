@@ -95,7 +95,10 @@
             font-size: 14px;
         }
 
-        @keyframes wiggle-up-down {
+        /*
+        * A new animation for the text, with a more pronounced up-and-down motion.
+        */
+        @keyframes wiggle-text {
             0%, 100% {
                 transform: translateY(0);
             }
@@ -106,7 +109,29 @@
 
         .wiggle-text {
             display: inline-block;
-            animation: wiggle-up-down 1s ease-in-out infinite;
+            animation: wiggle-text 1s ease-in-out infinite;
+        }
+        
+        /*
+        * A new animation for the duck image, combining a wiggle and a jump.
+        */
+        @keyframes wiggle-duck {
+            0%, 100% {
+                transform: rotate(0deg) translateY(0);
+            }
+            25% {
+                transform: rotate(-5deg) translateY(-5px);
+            }
+            50% {
+                transform: rotate(5deg) translateY(0);
+            }
+            75% {
+                transform: rotate(-5deg) translateY(-5px);
+            }
+        }
+        
+        .wiggle-duck {
+            animation: wiggle-duck 0.5s ease-in-out infinite;
         }
     </style>
     <!--
@@ -132,8 +157,8 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 300;
-            const maxMarkerSize = 15; // A new constant for the maximum marker size in pixels.
-            const baseMarkerSize = 10; // A smaller base size for the markers.
+            const maxMarkerSize = 15;
+            const baseMarkerSize = 10;
 
             let map = null;
             let startLocation = null;
@@ -141,7 +166,7 @@
             let lastKnownPosition = null;
             let lastApiCallPosition = null;
             let startOverlay = null; 
-            let destinationOverlay = null; // Changed to a CustomOverlay for dynamic sizing
+            let destinationOverlay = null;
             let routePolyline = null;
             let locationWatchId = null;
             let timerContainer = null;
@@ -196,7 +221,6 @@
                 const destinationImageElement = document.getElementById('destination-image');
                 if (!duckImageElement || !destinationImageElement) return;
 
-                // The scale is now capped at `maxMarkerSize` to prevent markers from getting too large.
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
 
                 duckImageElement.style.width = `${scale}px`;
@@ -207,15 +231,10 @@
 
             /**
             * Sets or updates the duck marker on the map using a CustomOverlay.
-            * This approach allows us to use CSS to dynamically flip the image.
             */
             function setStartMarker() {
                 if (!isMapInitialized) return;
                 
-                if (startOverlay) {
-                    startOverlay.setMap(null);
-                }
-
                 let shouldFlip = false;
                 if (startLocation && destinationLocation) {
                     if (startLocation[1] > destinationLocation[1]) {
@@ -226,24 +245,34 @@
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
-                const content = `
-                    <div style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
-                        <img id="duck-image" src="${duckImageSrc}" alt="Current Position" style="width: 100%; height: 100%;">
-                    </div>
-                `;
+                // If the overlay already exists, just update its position and flip state.
+                if (startOverlay) {
+                    startOverlay.setPosition(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                    const duckImageElement = document.getElementById('duck-image');
+                    if (duckImageElement) {
+                        // Apply the horizontal flip using a CSS transform property
+                        duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
+                    }
+                } else {
+                    // Create the HTML content for the custom overlay.
+                    const content = `
+                        <div style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
+                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
+                        </div>
+                    `;
 
-                startOverlay = new kakao.maps.CustomOverlay({
-                    map: map,
-                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
-                    content: content,
-                    yAnchor: 1.0, 
-                    zIndex: 2
-                });
+                    startOverlay = new kakao.maps.CustomOverlay({
+                        map: map,
+                        position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
+                        content: content,
+                        yAnchor: 1.0, 
+                        zIndex: 2
+                    });
+                }
             }
 
             /**
              * Sets or updates the destination marker on the map.
-             * This also uses a CustomOverlay to allow for dynamic sizing and styling.
              */
             function setDestinationMarker() {
                 if (!isMapInitialized || !destinationLocation) return;
@@ -255,7 +284,6 @@
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
-                // Using an SVG for a lightweight, scalable destination marker.
                 const content = `
                     <div style="position: relative; width: ${scale}px; height: ${scale}px; display: flex; align-items: center; justify-content: center;">
                          <svg id="destination-image" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="#E30A20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -277,7 +305,6 @@
 
             /**
             * A new function to automatically adjust the map view to fit both the start and destination markers.
-            * A small padding of 20 pixels is added to ensure markers are not cut off at the edges.
             */
             function updateMapViewToFitMarkers() {
                 if (!isMapInitialized || !startLocation || !destinationLocation) {
@@ -288,7 +315,6 @@
                 bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                 bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
                 
-                // Add a small padding (in pixels) to keep the markers close to the edge without being cut off.
                 map.setBounds(bounds, 20);
             }
 
@@ -539,8 +565,13 @@
                 }
                 
                 const distance = calculateDistance(startLocation, destinationLocation);
-
+                const duckImageElement = document.getElementById('duck-image');
+                
                 if (distance < 350) {
+                    // Add the wiggle animation when close to the destination
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
                     if (timerContainer) {
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
@@ -553,6 +584,11 @@
                         locationWatchId = null;
                     }
                     return;
+                } else {
+                    // Remove the wiggle animation if the distance is greater than 350m
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
                 }
 
                 if (!ORS_API_KEY) {
