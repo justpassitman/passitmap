@@ -113,15 +113,17 @@
             let locationWatchId = null;
             let timerContainer = document.getElementById('timer-container');
             let geocoder = new kakao.maps.services.Geocoder();
-
+            
+            // Set up a default center (Seoul) for fallbacks
+            const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780); // Coordinates for Seoul
+            
             // First, check if the map container exists
             const mapContainer = document.getElementById('map');
             if (!mapContainer) {
                 return;
             }
 
-            // Set up the map with a default center (Seoul) immediately to ensure it's not a grey screen.
-            const defaultCenter = new kakao.maps.LatLng(37.5665, 126.9780); // Coordinates for Seoul
+            // Set up the map with a default center immediately to ensure it's not a grey screen.
             const mapOptions = {
                 center: defaultCenter,
                 level: 5
@@ -134,32 +136,38 @@
 
             // Check for URL parameters
             const urlParams = new URLSearchParams(window.location.search);
-            let destination = urlParams.get('destination');
+            const destinationParam = urlParams.get('destination');
             
-            // Default destination for testing, as requested.
-            if (!destination) {
-                destination = "대한민국 서울특별시 종로구 가회동 번지 지하 31-122 2층";
+            // Handle destination, with a fallback
+            const destination = destinationParam || "대한민국 서울특별시 종로구 가회동 번지 지하 31-122 2층";
+            
+            // Get the user's location and begin the process
+            getStartLocationAndBeginTracking(destination);
+
+            function geocodeDestinationAndRoute(destAddress) {
+                geocoder.addressSearch(destAddress, function(result, status) {
+                    if (status === kakao.maps.services.Status.OK && result.length > 0) {
+                        destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
+                        
+                        setStartMarker();
+                        setDestinationMarker();
+
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(startLocation);
+                        bounds.extend(destinationLocation);
+                        map.setBounds(bounds);
+                        
+                        getRouteAndTravelTime();
+                    } else {
+                        // Geocoding fails, fall back to a simple line
+                        destinationLocation = defaultCenter;
+                        startLocation = startLocation || defaultCenter;
+                        setStartMarker();
+                        setDestinationMarker();
+                        fallbackRoute();
+                    }
+                });
             }
-            
-            // Geocode the destination to get the destination location.
-            geocoder.addressSearch(destination, function(result, status) {
-                if (status === kakao.maps.services.Status.OK && result.length > 0) {
-                    destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
-                    
-                    // Update map center and set destination marker now that we have the location
-                    map.setCenter(destinationLocation);
-                    setDestinationMarker();
-                    
-                    // Now, try to get the user's location
-                    getStartLocationAndBeginTracking();
-
-                } else {
-                    // Even if geocoding fails, the map will still be visible at the default center.
-                    destinationLocation = defaultCenter;
-                    getStartLocationAndBeginTracking();
-                }
-            });
-
 
             function setStartMarker() {
                 // Use a custom SVG for the duck icon
@@ -202,34 +210,27 @@
                 }
             }
             
-            function getStartLocationAndBeginTracking() {
+            function getStartLocationAndBeginTracking(dest) {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
                             // If we get a location, use it and start polling
                             startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
                             lastApiCallPosition = startLocation;
-                            setStartMarker();
-                            
-                            const bounds = new kakao.maps.LatLngBounds();
-                            bounds.extend(startLocation);
-                            bounds.extend(destinationLocation);
-                            map.setBounds(bounds);
-
-                            getRouteAndTravelTime();
+                            geocodeDestinationAndRoute(dest);
                             startLocationPolling();
                         },
                         (error) => {
-                            startLocation = destinationLocation;
-                            setStartMarker();
-                            fallbackRoute();
+                            // On geolocation failure, use a default start location (Seoul) and show a fallback route
+                            startLocation = defaultCenter;
+                            geocodeDestinationAndRoute(dest);
                         },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
-                    startLocation = destinationLocation;
-                    setStartMarker();
-                    fallbackRoute();
+                    // If geolocation is not supported, use the default start location as a fallback.
+                    startLocation = defaultCenter;
+                    geocodeDestinationAndRoute(dest);
                 }
             }
 
