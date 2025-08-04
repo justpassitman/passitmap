@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            /* This is the key line to make the body background transparent */
             background-color: transparent; 
             font-family: 'Inter', sans-serif;
             margin: 0;
@@ -19,19 +18,14 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            /* Increased dimensions by 20% */
             width: 150px;
             height: 188px;
-            /* REMOVED: background-color: rgba(255, 255, 255, 0.5); */
-            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
+            border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            
-            /* REMOVED: backdrop-filter: blur(8px); */
-            /* REMOVED: -webkit-backdrop-filter: blur(8px); */
         }
 
         .map-container {
@@ -40,7 +34,7 @@
             height: 100%;
             border-radius: 0;
             box-shadow: none;
-            position: relative; /* Add this to make .timer-container's position absolute relative to the map container */
+            position: relative;
         }
 
         #map {
@@ -49,24 +43,22 @@
         }
 
         .timer-container {
-            /* Changed to absolute positioning and moved inside the map container */
             position: absolute; 
-            bottom: 0.75rem; /* Adjusted padding for the larger size */
-            left: 50%; /* Center the element horizontally */
-            transform: translateX(-50%); /* Adjust for the element's width */
-            max-width: 90%; /* Responsive width */
+            bottom: 0.75rem;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 90%;
             background-color: rgba(255, 255, 255, 0.7);
-            border-radius: 0.75rem; /* Adjusted border-radius for the larger size */
+            border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
-            padding: 0.75rem; /* Adjusted padding for the larger size */
+            padding: 0.75rem;
             text-align: center;
-            font-size: 100%; /* Kept font size consistent for readability */
+            font-size: 100%;
             font-weight: bold;
             color: #333;
         }
 
-        /* New CSS for the wiggle animation */
         @keyframes wiggle-up-down {
             0%, 100% {
                 transform: translateY(0);
@@ -96,27 +88,26 @@
     
     <script>
         (function() {
-            // !!! IMPORTANT: Replace "YOUR_API_KEY_HERE" with your new API key !!!
-            const API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
+            // !!! IMPORTANT: Replace "YOUR_ORS_API_KEY_HERE" with your ORS API key !!!
+            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
+            // !!! IMPORTANT: Replace "YOUR_KAKAO_API_KEY_HERE" with your Kakao API key !!!
+            const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             
-            // The minimum distance the user must move (in meters) before a new API call is made.
-            // This prevents excessive API calls while still providing live updates.
             const minDistanceForApiCall = 500;
             
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
-            let lastKnownPosition = null; // Store the last position to check for significant movement
-            let lastApiCallPosition = null; // Store the last position from which we made an API call
+            let lastKnownPosition = null;
+            let lastApiCallPosition = null;
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
-            let locationWatchId = null; // Store the watchPosition ID
+            let locationWatchId = null;
             let destinationName = null;
             let timerContainer = null;
 
             function init() {
-                // Initializing the map with zoom and attribution controls disabled
                 map = L.map('map', {
                     zoomControl: false,
                     attributionControl: false
@@ -160,12 +151,73 @@
                      popupAnchor: [0, -38]
                  });
                 
-                if (startMarker) {
-                    startMarker.setLatLng(startLocation);
-                } else {
-                    startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
-                        .bindPopup("Your current location");
+                 if (startMarker) {
+                     startMarker.setLatLng(startLocation);
+                 } else {
+                     startMarker = L.marker(startLocation, { icon: duckIcon }).addTo(map)
+                         .bindPopup("Your current location");
+                 }
+            }
+
+            async function tryGeocodeWithKakao(query) {
+                const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
+                try {
+                    const kakaoResponse = await fetch(kakaoGeocodeUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `KakaoAK ${KAKAO_API_KEY}`
+                        }
+                    });
+
+                    if (!kakaoResponse.ok) {
+                        console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
+                        return null;
+                    }
+
+                    const kakaoData = await kakaoResponse.json();
+                    if (kakaoData.documents && kakaoData.documents.length > 0) {
+                        const firstResult = kakaoData.documents[0];
+                        return {
+                            lat: firstResult.y,
+                            lng: firstResult.x,
+                            label: firstResult.address_name
+                        };
+                    }
+                } catch (error) {
+                    console.error("Kakao Geocoding failed:", error);
                 }
+                return null;
+            }
+
+            async function tryGeocodeWithORS(query) {
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+                    
+                    if (!geocodeResponse.ok) {
+                        if (geocodeResponse.status === 403) {
+                            console.error("ORS Geocoding failed: Invalid API key.");
+                            throw new Error("Invalid ORS API key.");
+                        }
+                        return null;
+                    }
+                    
+                    const geocodeData = await geocodeResponse.json();
+                    
+                    if (geocodeData.features.length > 0) {
+                        const firstResult = geocodeData.features[0];
+                        const destPoint = firstResult.geometry.coordinates;
+                        return {
+                            lat: destPoint[1],
+                            lng: destPoint[0],
+                            label: firstResult.properties.label
+                        };
+                    }
+                } catch (error) {
+                    console.error("ORS Geocoding failed:", error);
+                    throw error;
+                }
+                return null;
             }
 
             async function processDestination(destination) {
@@ -183,29 +235,31 @@
                     
                     let foundDestination = null;
 
-                    // Attempt 1: Try the original address as is.
-                    foundDestination = await tryGeocode(destination);
+                    // Attempt 1: Try with Kakao API for better Korean address support
+                    console.log("Attempting geocode with Kakao API...");
+                    foundDestination = await tryGeocodeWithKakao(destination);
 
-                    // Attempt 2: If no result, try a simplified version of the address.
-                    // This is especially useful for Korean addresses that might include apartment numbers
-                    // or other very specific details that confuse the geocoding service.
-                    if (!foundDestination) {
-                        const addressParts = destination.split(' ');
-                        const simplifiedAddress = addressParts.slice(0, -1).join(' ');
-                        if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
-                            foundDestination = await tryGeocode(simplifiedAddress);
+                    if (foundDestination) {
+                        console.log("Kakao API found a match.");
+                    } else {
+                        console.log("Kakao API failed. Falling back to OpenRouteService...");
+                        // Fallback to existing logic with OpenRouteService
+                        foundDestination = await tryGeocodeWithORS(destination);
+                        if (!foundDestination) {
+                             const addressParts = destination.split(' ');
+                             const simplifiedAddress = addressParts.slice(0, -1).join(' ');
+                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
+                             }
                         }
-                    }
-
-                    // Attempt 3: If still no result, try adding ", Seoul" as a final fallback.
-                    if (!foundDestination) {
-                        foundDestination = await tryGeocode(destination + ", Seoul");
+                        if (!foundDestination) {
+                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                        }
                     }
                     
                     if (foundDestination) {
-                        const destPoint = foundDestination.features[0].geometry.coordinates;
-                        destinationLocation = [destPoint[1], destPoint[0]];
-                        destinationName = foundDestination.features[0].properties.label;
+                        destinationLocation = [foundDestination.lat, foundDestination.lng];
+                        destinationName = foundDestination.label;
                         
                         setStartMarker();
                         if (destinationMarker) map.removeLayer(destinationMarker);
@@ -214,12 +268,10 @@
                         const bounds = L.latLngBounds([startLocation, destinationLocation]);
                         map.fitBounds(bounds, { padding: [20, 20] });
 
-                        // Initial API call
                         lastApiCallPosition = startLocation;
                         getRouteAndTravelTime();
                         startLocationPolling();
                     } else {
-                        // If no match is found after all attempts, show a generic error.
                         const defaultMessage = "Address not found. 🤯";
                         if (startMarker) {
                              startMarker.bindPopup(defaultMessage).openPopup();
@@ -229,7 +281,7 @@
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = "🤯 GPS out or simplify the adress";
+                    let errorMessage = error.message.includes("API key") ? error.message : "🤯 GPS out or simplify the adress";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -238,46 +290,15 @@
                 }
             }
             
-            async function tryGeocode(query) {
-                try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${API_KEY}&text=${encodeURIComponent(query)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
-                    
-                    if (!geocodeResponse.ok) {
-                        // Check for a specific API key error
-                        if (geocodeResponse.status === 403) {
-                            console.error("Geocoding failed: Invalid API key.");
-                            throw new Error("Invalid API key. Please check your key or generate a new one.");
-                        }
-                        return null;
-                    }
-                    
-                    const geocodeData = await geocodeResponse.json();
-                    
-                    if (geocodeData.features.length === 0) {
-                        return null;
-                    }
-                    
-                    return geocodeData;
-                } catch (error) {
-                    console.error("Geocoding failed:", error);
-                    return null;
-                }
-            }
-            
-            // This function now uses the more battery-efficient watchPosition API
             function startLocationPolling() {
-                // Clear any previous watch to prevent multiple listeners
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
                 }
                 
-                // Use watchPosition to monitor for changes in the user's location
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const newPosition = [position.coords.latitude, position.coords.longitude];
                         
-                        // Check if this is the first position or if the user has moved significantly
                         if (!lastKnownPosition) {
                             lastKnownPosition = newPosition;
                         }
@@ -286,28 +307,23 @@
                         const newLatLng = L.latLng(newPosition);
                         const distanceMoved = lastLatLng.distanceTo(newLatLng);
                         
-                        // Always update the duck's location to provide a live-tracking feel
                         startLocation = newPosition;
                         setStartMarker();
                         
-                        // Check if the user has moved more than the minimum distance for a new API call
                         if (lastApiCallPosition) {
                             const lastApiLatLng = L.latLng(lastApiCallPosition);
                             const distanceSinceLastCall = lastApiLatLng.distanceTo(newLatLng);
                             
                             if (distanceSinceLastCall > minDistanceForApiCall) {
-                                // Update the last API call position and fetch a new route
                                 lastApiCallPosition = newPosition;
                                 getRouteAndTravelTime();
                             }
                         }
 
-                        // Update the last known position for the next movement check
                         lastKnownPosition = newPosition;
                     },
                     (error) => {
                         console.error("Real-time geolocation error:", error);
-                        // If an error occurs, stop watching the position to save resources
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
                         }
@@ -348,33 +364,28 @@
 
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
-                    return; 
+                    return;
                 }
                 
-                // Calculate distance between current location and destination
                 const startLatLng = L.latLng(startLocation);
                 const destinationLatLng = L.latLng(destinationLocation);
                 const distance = startLatLng.distanceTo(destinationLatLng);
 
-                // Check if the user is within 350 meters of the destination
                 if (distance < 350) {
                     if (timerContainer) {
-                        // Apply the new wiggle-text class
                         timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
                     if (currentRouteLayer) {
                         map.removeLayer(currentRouteLayer);
                         currentRouteLayer = null;
                     }
-                    // Stop polling for new location data to save battery
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
-                    return; // Exit the function
+                    return;
                 }
 
-                // If not close, proceed with fetching the route as normal
                 const orsCoords = [
                     [startLocation[1], startLocation[0]],
                     [destinationLocation[1], destinationLocation[0]]
@@ -388,7 +399,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': API_KEY
+                            'Authorization': ORS_API_KEY
                         },
                         body: JSON.stringify(payload)
                     });
@@ -396,9 +407,8 @@
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
                         const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
-                        // Add specific check for API key error here too
                         if (response.status === 403) {
-                             throw new Error("Invalid API key. Please check your key or generate a new one.");
+                             throw new Error("Invalid ORS API key. Please check your key or generate a new one.");
                         }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
@@ -416,7 +426,6 @@
                         
                         const durationInMinutes = Math.round(durationInSeconds / 60);
                         
-                        // Update the new floating timer window instead of a popup
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                         }
@@ -425,15 +434,15 @@
                         map.fitBounds(bounds, { padding: [20, 20] });
 
                     } else {
-                         if (timerContainer) {
-                              timerContainer.innerHTML = "🤯 GPS out or simplify the address";
-                         }
+                           if (timerContainer) {
+                                timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                           }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "🤯 GPS out or simplify the address";
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
