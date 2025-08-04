@@ -47,13 +47,11 @@
         }
         
         /*
-         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
+         * This CSS rule hides the entire Kakao Maps attribution box, including the logo and copyright links,
+         * at the bottom-left of the map by targeting its parent container.
          * The !important flag is used to ensure it overrides the inline styles from the SDK.
          */
-        #map .kakao-maps-sdk,
-        #map .View_logo,
-        #map .View_copyright,
-        #map .View_copyright a {
+        #map .View_bottom_left {
             display: none !important;
         }
 
@@ -302,7 +300,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 🤯';
                         }
                     }
                 } catch (error) {
@@ -516,4 +514,3 @@
     </script>
 </body>
 </html>
-�
