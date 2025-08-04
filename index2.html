@@ -135,14 +135,16 @@
         }
         
         /*
-        * New animation for the destination marker.
+        * The animation now pulses both the stroke and the fill of the SVG.
         */
         @keyframes pulse-blue {
             0%, 100% {
                 stroke: #1565C0; /* Dark blue */
+                fill: #1565C0;
             }
             50% {
                 stroke: #2196F3; /* Light blue */
+                fill: #2196F3;
             }
         }
 
@@ -305,8 +307,8 @@
                 const content = `
                     <div style="position: relative; width: ${scale}px; height: ${scale}px; display: flex; align-items: center; justify-content: center;">
                          <!-- The SVG stroke color has been changed to a dark blue and the 'pulse-blue' class has been added. -->
-                         <svg id="destination-image" class="pulse-blue" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="#1565C0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="10" r="3" />
+                         <svg id="destination-image" class="pulse-blue" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="#1565C0" stroke="#1565C0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="10" r="3" fill="white" stroke="none"/>
                             <path d="M12 2a8 8 0 0 0-8 8c0 7.2 8 12 8 12s8-4.8 8-12a8 8 0 0 0-8-8z" />
                         </svg>
                     </div>
@@ -592,7 +594,8 @@
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     if (timerContainer) {
-                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
+                        // The emoji has been replaced with a text string.
+                        timerContainer.innerHTML = `<b><span class="wiggle-text">Arrived!</span></b>`;
                     }
                     if (routePolyline) {
                          routePolyline.setMap(null);
