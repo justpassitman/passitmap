@@ -4,28 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duck Delivery Widget</title>
+    <!-- Use Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Custom CSS for the widget */
         body {
-            background-color: transparent; 
+            background-color: transparent;
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
             overflow: hidden;
         }
-        
+
         .widget-container {
             position: fixed;
             top: 20px;
             right: 20px;
             width: 150px;
             height: 188px;
-            border-radius: 0.75rem; 
+            border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            border: 2px solid rgba(255, 255, 255, 0.5); /* Add a subtle border */
+            backdrop-filter: blur(5px);
+            background-color: rgba(255, 255, 255, 0.2);
         }
 
         .map-container {
@@ -40,19 +45,20 @@
         #map {
             height: 100%;
             width: 100%;
+            background-color: #e6e6e6; /* Ensures the map area is visible even without a loaded map */
         }
 
         .timer-container {
-            position: absolute; 
+            position: absolute;
             bottom: 0.75rem;
             left: 50%;
             transform: translateX(-50%);
             max-width: 90%;
-            background-color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(255, 255, 255, 0.8);
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
-            padding: 0.75rem;
+            padding: 0.5rem 0.75rem;
             text-align: center;
             font-size: 100%;
             font-weight: bold;
@@ -73,11 +79,12 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
-    <!-- Kakao Maps SDK with the 'services' library for geocoding -->
-    <!-- The 'onload' parameter ensures `onKakaoMapLoaded` is called after the script is fully loaded. -->
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false&onload=onKakaoMapLoaded"></script>
+    <!--
+        [IMPORTANT] The `onload=init` attribute ensures the `init` function is called after the SDK has loaded.
+    -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false&onload=init"></script>
 </head>
-<body class="bg-gray-100">
+<body>
 
     <div class="widget-container">
         <div class="map-container rounded-b-xl">
@@ -87,14 +94,21 @@
     </div>
     
     <script>
-        // Global function called by the Kakao Maps SDK when it's finished loading.
-        function onKakaoMapLoaded() {
-            init();
-        }
+        /**
+         * This function contains all the application logic and will be called
+         * directly by the Kakao Maps SDK after it has loaded.
+         */
+        function init() {
+            // NOTE: The `ReferenceError` is caused by the Kakao Maps library not loading correctly.
+            // The `onload=init` attribute on the script tag is the correct way to handle this.
+            // If the error persists, it may be related to the API key.
+            if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
+                document.getElementById('timer-container').innerHTML = "Map Library Failed to Load. 🤯";
+                console.error("Kakao Maps SDK failed to load. The 'kakao' object is not defined.");
+                return;
+            }
 
-        // Immediately invoked function expression to keep variables out of the global scope.
-        (function() {
-            // NOTE: Replace with your actual Openrouteservice API key.
+            // NOTE: Using the provided Openrouteservice API key.
             const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
             
             // Minimum distance in meters before a new API call is made to save quota.
@@ -104,48 +118,77 @@
             let map = null;
             let startLocation = null;
             let destinationLocation = null;
-            let lastKnownPosition = null; 
-            let lastApiCallPosition = null; 
+            let lastKnownPosition = null;
+            let lastApiCallPosition = null;
             let startMarker = null;
             let destinationMarker = null;
             let currentRouteLayer = null;
-            let locationWatchId = null; 
-            let timerContainer = null;
-            let geocoder = null;
+            let locationWatchId = null;
+            let timerContainer = document.getElementById('timer-container');
+            let geocoder = new kakao.maps.services.Geocoder();
 
-            function init() {
-                timerContainer = document.getElementById('timer-container');
+            // First, check if the map container exists
+            const mapContainer = document.getElementById('map');
+            if (!mapContainer) {
+                handleError("Map container element 'map' not found. 🤯");
+                return;
+            }
 
-                const mapContainer = document.getElementById('map');
-                const mapOptions = {
-                    center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 5
-                };
-                map = new kakao.maps.Map(mapContainer, mapOptions);
-
-                map.setZoomable(false);
-                map.setDraggable(false);
-                map.setKeyboardShortcuts(false);
-                
-                geocoder = new kakao.maps.services.Geocoder();
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const destination = urlParams.get('destination');
-                
-                if (destination) {
-                    processDestination(destination);
-                } else {
-                    handleError("No destination provided.");
-                }
+            // Check for URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            let destination = urlParams.get('destination');
+            
+            // Default destination for testing, as requested.
+            if (!destination) {
+                destination = "대한민국 서울특별시 종로구 가회동 번지 지하 31-122 2층";
             }
             
+            // First, geocode the destination to get the initial destination location
+            geocoder.addressSearch(destination, function(result, status) {
+                if (status === kakao.maps.services.Status.OK && result.length > 0) {
+                    destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
+                    
+                    // Set up the map with the destination as the initial center
+                    const mapOptions = {
+                        center: destinationLocation,
+                        level: 5
+                    };
+                    map = new kakao.maps.Map(mapContainer, mapOptions);
+
+                    map.setZoomable(false);
+                    map.setDraggable(false);
+                    map.setKeyboardShortcuts(false);
+                    
+                    // Set destination marker immediately
+                    setDestinationMarker();
+                    
+                    // Now, try to get the user's location
+                    getStartLocationAndBeginTracking();
+
+                } else {
+                    handleError("Destination address not found. 🤯");
+                }
+            });
+
+
             function setStartMarker() {
-                 // Use a placeholder image to ensure the duck marker always appears
-                 const imageSrc = 'https://placehold.co/38x38/000000/FFFFFF?text=🦆',
-                       imageSize = new kakao.maps.Size(38, 38),
-                       imageOption = {offset: new kakao.maps.Point(19, 38)};
+                // Use a custom SVG for the duck icon
+                const duckSvg = `<svg width="38" height="38" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C8.68629 2 6 4.68629 6 8V12C6 15.3137 8.68629 18 12 18H18V12C18 8.68629 15.3137 2 12 2Z" fill="#F8A525" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 18V22" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12Z" fill="#F8F8F8" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 2H18V12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12V8C6 4.68629 8.68629 2 12 2Z" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 20C12 20.5523 12.4477 21 13 21C13.5523 21 14 20.5523 14 20C14 19.4477 13.5523 19 13 19C12.4477 19 12 19.4477 12 20Z" fill="#E8B54D"/>
+                    <path d="M13 22C13.5523 22 14 21.5523 14 21V20C14 19.4477 13.5523 19 13 19C12.4477 19 12 19.4477 12 20V21C12 21.5523 12.4477 22 13 22Z" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M10 12L12 10" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>`;
+
+                // Create a data URL for the SVG icon
+                const duckIconDataUrl = 'data:image/svg+xml;base64,' + btoa(duckSvg);
+                const imageSize = new kakao.maps.Size(38, 38);
+                const imageOption = {offset: new kakao.maps.Point(19, 38)};
                 
-                 const duckIcon = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+                const duckIcon = new kakao.maps.MarkerImage(duckIconDataUrl, imageSize, imageOption);
 
                 if (startMarker) {
                     startMarker.setPosition(startLocation);
@@ -168,53 +211,39 @@
                     destinationMarker.setMap(map);
                 }
             }
-
-            async function processDestination(destination) {
+            
+            function getStartLocationAndBeginTracking() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
+                            // If we get a location, use it and start polling
                             startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                            geocoder.addressSearch(destination, function(result, status) {
-                                if (status === kakao.maps.services.Status.OK) {
-                                    destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
-                                    
-                                    setStartMarker();
-                                    setDestinationMarker();
-                                    
-                                    const bounds = new kakao.maps.LatLngBounds();
-                                    bounds.extend(startLocation);
-                                    bounds.extend(destinationLocation);
-                                    map.setBounds(bounds);
+                            lastApiCallPosition = startLocation;
+                            setStartMarker();
+                            
+                            const bounds = new kakao.maps.LatLngBounds();
+                            bounds.extend(startLocation);
+                            bounds.extend(destinationLocation);
+                            map.setBounds(bounds);
 
-                                    lastApiCallPosition = startLocation;
-                                    getRouteAndTravelTime();
-                                    startLocationPolling();
-                                } else {
-                                    handleError("Address not found. 🤯");
-                                }
-                            });
+                            getRouteAndTravelTime();
+                            startLocationPolling();
                         },
                         (error) => {
-                            let errorMessage;
-                            switch(error.code) {
-                                case error.PERMISSION_DENIED:
-                                    errorMessage = "Geolocation Denied. 🤯";
-                                    break;
-                                case error.POSITION_UNAVAILABLE:
-                                    errorMessage = "Position unavailable. 🤯";
-                                    break;
-                                case error.TIMEOUT:
-                                    errorMessage = "Geolocation timeout. 🤯";
-                                    break;
-                                default:
-                                    errorMessage = "GPS access failed. 🤯";
-                            }
-                            handleError(errorMessage);
+                            // If geolocation fails, use the destination as a fallback start location and show an error.
+                            handleError("Geolocation Denied or Failed. 🤯");
+                            startLocation = destinationLocation;
+                            setStartMarker();
+                            fallbackRoute();
                         },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
+                    // If the browser doesn't support geolocation, use the destination as the start location
                     handleError("Geolocation not supported by this browser. 🤯");
+                    startLocation = destinationLocation;
+                    setStartMarker();
+                    fallbackRoute();
                 }
             }
 
@@ -287,7 +316,7 @@
             }
             
             function fallbackRoute() {
-                // FALLBACK: Calculate straight-line distance and time if API fails
+                if (!startLocation || !destinationLocation) return;
                 const straightDistance = startLocation.getDistance(destinationLocation);
                 const estimatedTime = Math.round((straightDistance / avgBicycleSpeedMetersPerSec) / 60);
                 
@@ -314,7 +343,7 @@
 
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
-                    return; 
+                    return;
                 }
                 
                 const distance = startLocation.getDistance(destinationLocation);
@@ -353,7 +382,6 @@
                     });
 
                     if (!response.ok) {
-                        // Throw an error to trigger the catch block and use the fallback
                         const errorData = await response.json().catch(() => ({}));
                         throw new Error(`API request failed with status: ${response.status} and message: ${errorData.error?.message || 'unknown'}.`);
                     }
@@ -394,26 +422,25 @@
                         map.setBounds(bounds);
 
                     } else {
-                         // Even if the response is OK, if there's no route data, use fallback.
-                         console.warn("API response was OK but no route data was found. Using fallback.");
-                         handleError("Routing API Failed. Using fallback.");
-                         fallbackRoute();
+                        console.warn("API response was OK but no route data was found. Using fallback.");
+                        handleError("Routing API Failed. Using fallback.");
+                        fallbackRoute();
                     }
 
                 } catch (error) {
                     console.error("Full Routing Error Details:", error);
                     handleError("Routing API Failed. Using fallback.");
-                    fallbackRoute();
+                        fallbackRoute();
                 }
             }
 
             function handleError(message) {
-                 if (timerContainer) {
-                      timerContainer.innerHTML = message;
-                      console.error(message);
-                 }
+                if (timerContainer) {
+                    timerContainer.innerHTML = message;
+                    console.error(message);
+                }
             }
-        })();
+        }
     </script>
 </body>
 </html>
