@@ -196,49 +196,43 @@
             }
         }
 
-        .destination-marker-animated {
+        .destination-marker-gentle {
             animation: gentle-balance 2s ease-in-out infinite;
         }
 
         /*
         * New animation for the energetic balancing effect (for f.png).
         */
-        @keyframes energetic-balance {
+        @keyframes very-fast-balance {
             0%, 100% {
-                transform: rotate(-5deg);
+                transform: rotate(-7deg);
             }
             50% {
-                transform: rotate(5deg);
+                transform: rotate(7deg);
             }
         }
 
-        .destination-marker-energetic {
-            animation: energetic-balance 0.5s ease-in-out infinite;
+        .destination-marker-very-fast {
+            animation: very-fast-balance 0.3s ease-in-out infinite;
         }
 
-        .default-marker-container {
-            width: 30px;
-            height: 30px;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform-origin: center bottom;
+        /*
+        * New animation for the default destination marker's color pulse.
+        */
+        @keyframes color-pulse {
+            0%, 100% {
+                fill: hsl(210, 100%, 75%);
+            }
+            50% {
+                fill: hsl(210, 100%, 45%);
+            }
         }
 
-        .default-marker-outer {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            background-color: #0088ff;
-        }
-        
-        .default-marker-inner {
-            position: absolute;
-            width: 50%;
-            height: 50%;
-            border-radius: 50%;
-            background-color: #fff;
+        /*
+        * Style for the default marker SVG.
+        */
+        .classic-marker-svg {
+            animation: color-pulse 2s ease-in-out infinite;
         }
 
         .destination-image {
@@ -269,12 +263,13 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
-            const gentleAnimationDistance = 700; // Distance for the d.png marker with gentle animation
-            const energeticAnimationDistance = 350; // New distance for the f.png marker with energetic animation
-            const arrivalDistance = 50; // New, very close distance to trigger 'arrived' state
+            const gentleAnimationDistance = 700;
+            const veryFastAnimationDistance = 350;
+            const arrivalDistance = 50;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
-            const destinationSizeMultiplier = 1.875;
+            // The destination marker size will be at most 80% of the duck's size.
+            const destinationSizeMultiplier = 0.8;
 
             let map = null;
             let startLocation = null;
@@ -282,7 +277,7 @@
             let lastKnownPosition = null;
             let lastApiCallPosition = null;
             let startOverlay = null; 
-            let destinationOverlay = null; // Single variable for the destination marker overlay
+            let destinationOverlay = null;
             let routePolyline = null;
             let locationWatchId = null;
             let timerContainer = null;
@@ -291,8 +286,8 @@
             let quackDirection = 'left';
 
             const duckImageSrc = 'duck.png';
-            const destinationImageSrc = 'd.png';
-            const chickImageSrc = 'f.png';
+            const gentleDestinationImageSrc = 'd.png';
+            const energeticDestinationImageSrc = 'f.png';
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
@@ -356,7 +351,7 @@
             
             /**
              * Updates the destination marker's visual state based on distance.
-             * @param {string} state - The desired state ('default', 'gentle', 'energetic', 'arrived').
+             * @param {string} state - The desired state ('default', 'gentle', 'very-fast', 'arrived').
              */
             function updateDestinationMarkerState(state) {
                 if (!isMapInitialized || !destinationLocation) {
@@ -377,20 +372,22 @@
                 let imgSrc = '';
                 
                 if (state === 'default') {
+                    // SVG for the classic navigation pin icon
                     content = `
-                        <div id="destination-marker-container" class="default-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
-                            <div class="default-marker-outer"></div>
-                            <div class="default-marker-inner"></div>
+                        <div id="destination-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                            <svg class="classic-marker-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                            </svg>
                         </div>
                     `;
                 } else if (state === 'gentle') {
-                    className = 'destination-marker-animated';
-                    imgSrc = destinationImageSrc;
-                } else if (state === 'energetic' || state === 'arrived') {
-                    if (state === 'energetic') {
-                         className = 'destination-marker-energetic';
-                    }
-                    imgSrc = chickImageSrc;
+                    className = 'destination-marker-gentle';
+                    imgSrc = gentleDestinationImageSrc;
+                } else if (state === 'very-fast') {
+                    className = 'destination-marker-very-fast';
+                    imgSrc = energeticDestinationImageSrc;
+                } else if (state === 'arrived') {
+                    imgSrc = energeticDestinationImageSrc;
                 }
 
                 if (state !== 'default') {
@@ -790,9 +787,9 @@
                     }
                     startQuacking();
                     return;
-                } else if (distance < energeticAnimationDistance) {
+                } else if (distance < veryFastAnimationDistance) {
                     // State 2: Very close to destination (energetic animation)
-                    updateDestinationMarkerState('energetic');
+                    updateDestinationMarkerState('very-fast');
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
