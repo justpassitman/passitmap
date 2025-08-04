@@ -43,35 +43,27 @@ export default function App() {
     const particleCount = 1000;
     const geometry = new THREE.BufferGeometry();
     const positions = [];
-    const colors = [];
     velocitiesRef.current = [];
 
-    const color = new THREE.Color();
-    // Generate particles with random positions, colors, and velocities
+    // Generate particles with random positions and velocities
     for (let i = 0; i < particleCount; i++) {
       // Position
       positions.push(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
 
-      // Color
-      color.setHSL(Math.random(), 1.0, 0.5);
-      colors.push(color.r, color.g, color.b);
-
-      // Velocity (increased by a factor of 10)
+      // Velocity (increased by a factor of 20)
       velocitiesRef.current.push(
-        (Math.random() - 0.5) * 0.05 * 10, // X velocity
-        (Math.random() - 0.5) * 0.05 * 10, // Y velocity
-        (Math.random() - 0.5) * 0.05 * 10  // Z velocity
+        (Math.random() - 0.5) * 0.05 * 20, // X velocity
+        (Math.random() - 0.5) * 0.05 * 20, // Y velocity
+        (Math.random() - 0.5) * 0.05 * 20  // Z velocity
       );
     }
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 
     // Material (size of dots is 1/10th of the previous value)
+    // Removed blending and vertexColors for a solid, non-glowing green dot
     const material = new THREE.PointsMaterial({
       size: 0.01,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending,
-      transparent: true
+      color: 0x00ff00
     });
 
     const particles = new THREE.Points(geometry, material);
@@ -220,9 +212,9 @@ export default function App() {
         positions[i + 1] = Math.random() * 10 - 5;
         positions[i + 2] = Math.random() * 10 - 5;
 
-        velocities[i] = (Math.random() - 0.5) * 0.05 * 10;
-        velocities[i + 1] = (Math.random() - 0.5) * 0.05 * 10;
-        velocities[i + 2] = (Math.random() - 0.5) * 0.05 * 10;
+        velocities[i] = (Math.random() - 0.5) * 0.05 * 20;
+        velocities[i + 1] = (Math.random() - 0.5) * 0.05 * 20;
+        velocities[i + 2] = (Math.random() - 0.5) * 0.05 * 20;
       }
       particles.geometry.attributes.position.needsUpdate = true;
     }
