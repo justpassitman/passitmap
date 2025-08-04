@@ -156,9 +156,11 @@
             
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
-            const minDistanceForApiCall = 300;
-            const maxMarkerSize = 15;
-            const baseMarkerSize = 10;
+            const minDistanceForApiCall = 350;
+            // The max marker size has been doubled from 15px to 30px.
+            const maxMarkerSize = 30;
+            // The base marker size has been doubled from 10px to 20px.
+            const baseMarkerSize = 20;
 
             let map = null;
             let startLocation = null;
@@ -448,7 +450,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = 'Address not found. �';
                         }
                     }
                 } catch (error) {
@@ -688,3 +690,4 @@
     </script>
 </body>
 </html>
+�
