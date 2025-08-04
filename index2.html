@@ -419,8 +419,8 @@
                         map: map,
                         position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
                         content: content,
-                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
-                        yAnchor: 1.1,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
                         zIndex: 1
                     });
                 }
@@ -462,8 +462,8 @@
                         map: map,
                         position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                         content: content,
-                        // The yAnchor has been set to 1.1, which aligns the bottom of the marker with the coordinate.
-                        yAnchor: 1.1,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
                         zIndex: 2
                     });
                 }
