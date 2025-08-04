@@ -88,13 +88,12 @@
     
     <script>
         (function() {
-            // !!! IMPORTANT: Replace "YOUR_ORS_API_KEY_HERE" with your ORS API key !!!
-            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=
-";
-            // !!! IMPORTANT: Replace "YOUR_KAKAO_API_KEY_HERE" with your Kakao API key !!!
+            // Updated API keys as provided by the user.
+            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             
-            const minDistanceForApiCall = 500;
+            // The minimum distance in meters the user must travel before a new API call is made.
+            const minDistanceForApiCall = 300;
             
             let map = null;
             let startLocation = null;
@@ -282,7 +281,7 @@
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    let errorMessage = error.message.includes("API key") ? error.message : "🤯 GPS out or simplify the adress";
+                    let errorMessage = error.message.includes("API key") ? "Invalid API Key 🤯" : "Address not found or routing error occurred.";
                     if (startMarker) {
                         startMarker.bindPopup(errorMessage).openPopup();
                     } else {
@@ -436,14 +435,14 @@
 
                     } else {
                            if (timerContainer) {
-                                timerContainer.innerHTML = "🤯 GPS out or simplify the address";
+                                timerContainer.innerHTML = "Routing data could not be found.";
                            }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "🤯 GPS out or simplify the address";
+                        timerContainer.innerHTML = error.message.includes("Invalid ORS API key") ? "Invalid ORS API Key 🤯" : "Routing error occurred.";
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
