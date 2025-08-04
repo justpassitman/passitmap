@@ -134,7 +134,7 @@
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
                     center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 9,
+                    level: 6, // Adjusted the initial zoom level to be more zoomed in
                     draggable: false,
                     scrollwheel: false,
                     disableDoubleClick: true,
@@ -482,6 +482,14 @@
                         const bounds = new kakao.maps.LatLngBounds();
                         path.forEach(latLng => bounds.extend(latLng));
                         map.setBounds(bounds);
+                        // Added a timeout to adjust the zoom level further after the bounds are set.
+                        setTimeout(() => {
+                            const currentLevel = map.getLevel();
+                            if (currentLevel > 3) {
+                                map.setLevel(currentLevel - 2);
+                            }
+                        }, 500);
+
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "Routing data could not be found.";
