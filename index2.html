@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duck Delivery Widget (KakaoMap)</title>
+    <title>Duck Delivery Widget</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
-            background-color: transparent;
+            background-color: transparent; 
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
             overflow: hidden;
         }
-
+        
         .widget-container {
             position: fixed;
             top: 20px;
             right: 20px;
             width: 150px;
             height: 188px;
-            border-radius: 0.75rem;
+            border-radius: 0.75rem; 
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1000;
             overflow: hidden;
@@ -43,7 +43,7 @@
         }
 
         .timer-container {
-            position: absolute;
+            position: absolute; 
             bottom: 0.75rem;
             left: 50%;
             transform: translateX(-50%);
@@ -60,8 +60,12 @@
         }
 
         @keyframes wiggle-up-down {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-5px);
+            }
         }
 
         .wiggle-text {
@@ -69,6 +73,7 @@
             animation: wiggle-up-down 1s ease-in-out infinite;
         }
     </style>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_JAVASCRIPT_KEY&libraries=services"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -79,345 +84,286 @@
         </div>
     </div>
     
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services,clusterer,drawing"></script>
-
     <script>
-        window.kakao.maps.load(() => {
-            // NOTE: The Javascript key is used for the Kakao Maps SDK, which is loaded above.
-            const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
+        (function() {
+            // !!! IMPORTANT: Replace "YOUR_KAKAO_JAVASCRIPT_KEY" with your actual key !!!
+            // And also make sure your domain is registered in the Kakao Developers console.
+            const KAKAO_JAVASCRIPT_KEY = "00a03dac8488d12731e4021756938e72";
+            const KAKAO_REST_API_KEY = "dad89b90a6acaa5acadc74e2329cab63"; // You will also need a REST API key for the Directions API
+
+            const minDistanceForApiCall = 500;
             
-            // The REST API key for the Kakao Mobility API.
-            const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
-
-            const MIN_DISTANCE_FOR_API_CALL = 350;
-
             let map = null;
-            let userMarker = null;
+            let startLocation = null;
+            let destinationLocation = null;
+            let lastKnownPosition = null; 
+            let lastApiCallPosition = null; 
+            let startMarker = null;
             let destinationMarker = null;
-            let polyline = null;
-            let destinationCoords = null;
-            let lastApiCallPosition = null;
-            let locationWatchId = null;
+            let currentRouteLayer = null;
+            let locationWatchId = null; 
+            let destinationName = null;
             let timerContainer = null;
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
-            
-            const DEFAULT_POSITION = new kakao.maps.LatLng(37.566826, 126.9786567);
+            let geocoder = null;
 
             function init() {
                 timerContainer = document.getElementById('timer-container');
+
                 const mapContainer = document.getElementById('map');
+                const mapOptions = {
+                    center: new kakao.maps.LatLng(37.5665, 126.9780),
+                    level: 5
+                };
+                map = new kakao.maps.Map(mapContainer, mapOptions);
+
+                // Disable zoom and other controls for a cleaner widget feel
+                map.setZoomable(false);
+                map.setDraggable(false);
+                map.setKeyboardShortcuts(false);
                 
-                if (mapContainer) {
-                    map = new kakao.maps.Map(mapContainer, {
-                        center: DEFAULT_POSITION,
-                        level: 3,
-                        disableDoubleClick: true,
-                        draggable: true,
-                        scrollwheel: false,
-                        keyboardShortcuts: false
+                // Initialize the geocoder service
+                geocoder = new kakao.maps.services.Geocoder();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const destination = urlParams.get('destination');
+                
+                if (destination) {
+                    processDestination(destination);
+                } else {
+                    startLocation = new kakao.maps.LatLng(37.5665, 126.9780);
+                    map.setCenter(startLocation);
+                }
+            }
+
+            function setStartMarker() {
+                 const imageSrc = 'duck.png',
+                       imageSize = new kakao.maps.Size(38, 38),
+                       imageOption = {offset: new kakao.maps.Point(19, 38)};
+                
+                 const duckIcon = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
+
+                if (startMarker) {
+                    startMarker.setPosition(startLocation);
+                } else {
+                    startMarker = new kakao.maps.Marker({
+                        position: startLocation,
+                        image: duckIcon
                     });
+                    startMarker.setMap(map);
+                }
+            }
+            
+            function setDestinationMarker() {
+                if (destinationMarker) {
+                    destinationMarker.setPosition(destinationLocation);
+                } else {
+                    destinationMarker = new kakao.maps.Marker({
+                        position: destinationLocation
+                    });
+                    destinationMarker.setMap(map);
+                }
+            }
+
+            async function processDestination(destination) {
+                const getUserLocation = () => new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    } else {
+                        reject(new Error("Geolocation not supported."));
+                    }
+                });
+
+                try {
+                    const position = await getUserLocation();
+                    startLocation = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
                     
-                    kakao.maps.event.trigger(map, 'resize');
+                    geocoder.addressSearch(destination, async function(result, status) {
+                        if (status === kakao.maps.services.Status.OK) {
+                            destinationLocation = new kakao.maps.LatLng(result[0].y, result[0].x);
+                            destinationName = result[0].address_name;
+                            
+                            setStartMarker();
+                            setDestinationMarker();
+                            
+                            const bounds = new kakao.maps.LatLngBounds();
+                            bounds.extend(startLocation);
+                            bounds.extend(destinationLocation);
+                            map.setBounds(bounds);
 
-                    geocodeAddress(destinationAddress).then(coords => {
-                        destinationCoords = coords;
-                        destinationMarker = new kakao.maps.Marker({
-                            map: map,
-                            position: destinationCoords
-                        });
-                        startLiveTracking();
-                    }).catch(error => {
-                        timerContainer.innerHTML = 'Destination not found. 🤯';
-                        console.error("Geocoding Error:", error);
+                            lastApiCallPosition = startLocation;
+                            getRouteAndTravelTime();
+                            startLocationPolling();
+                        } else {
+                            handleError("Address not found. 🤯");
+                        }
                     });
-                } else {
-                    console.error("Map container element not found. Make sure an element with id='map' exists.");
+                } catch (error) {
+                    console.error("Error:", error);
+                    handleError("🤯 GPS out or simplify the address");
                 }
             }
-            
-            function startLiveTracking() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(pos => {
-                        updatePosition(pos);
-                        locationWatchId = navigator.geolocation.watchPosition(updatePosition, handleGeolocationError, {
-                            enableHighAccuracy: true,
-                            maximumAge: 0
-                        });
-                    }, handleGeolocationError, {
-                        enableHighAccuracy: true,
-                        maximumAge: 0
-                    });
-                } else {
-                    timerContainer.innerHTML = "GPS not supported. Using default location.";
-                    updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
-                }
-            }
-            
-            async function updatePosition(position) {
-                const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                
-                if (!userMarker) {
-                    userMarker = new kakao.maps.Marker({
-                        map: map,
-                        image: new kakao.maps.MarkerImage(
-                            'duck.png',
-                            new kakao.maps.Size(38, 38),
-                            { offset: new kakao.maps.Point(19, 38) }
-                        ),
-                        position: currentCoords
-                    });
-                } else {
-                    userMarker.setPosition(currentCoords);
-                }
-                map.setCenter(currentCoords);
 
-                if (!destinationCoords) {
-                    timerContainer.innerHTML = "Destination not found. 🤯";
-                    return;
-                }
-
-                const distanceToDest = getDistance(currentCoords, destinationCoords);
-                if (distanceToDest < 350) {
-                    timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
-                    if (polyline) polyline.setMap(null);
+            function startLocationPolling() {
+                if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
-                    return;
                 }
-
-                if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
-                    lastApiCallPosition = currentCoords;
-                    
-                    let routeData = null;
-                    let routeType = null;
-                    try {
-                        routeData = await fetchBicycleRoute(currentCoords, destinationCoords);
-                        routeType = 'bicycle';
-                    } catch (bicycleError) {
-                        console.log("Bicycle route failed, trying car route...", bicycleError);
-                        try {
-                            routeData = await fetchCarRoute(currentCoords, destinationCoords);
-                            routeType = 'car';
-                        } catch (carError) {
-                            console.log("Car route failed, trying walking route...", carError);
-                            try {
-                                routeData = await fetchWalkingRoute(currentCoords, destinationCoords);
-                                routeType = 'walk';
-                            } catch (walkError) {
-                                console.error("All route types failed:", walkError);
+                
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const newPosition = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                        
+                        if (!lastKnownPosition) {
+                            lastKnownPosition = newPosition;
+                        }
+                        
+                        // Use the distanceTo function provided by Kakao Maps
+                        const distanceMoved = lastKnownPosition.getDistance(newPosition);
+                        
+                        startLocation = newPosition;
+                        setStartMarker();
+                        
+                        if (lastApiCallPosition) {
+                            const distanceSinceLastCall = lastApiCallPosition.getDistance(newPosition);
+                            
+                            if (distanceSinceLastCall > minDistanceForApiCall) {
+                                lastApiCallPosition = newPosition;
+                                getRouteAndTravelTime();
                             }
                         }
+
+                        lastKnownPosition = newPosition;
+                    },
+                    (error) => {
+                        console.error("Real-time geolocation error:", error);
+                        if (locationWatchId) {
+                            navigator.geolocation.clearWatch(locationWatchId);
+                            locationWatchId = null;
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+            }
+
+            async function getRouteAndTravelTime() {
+                if (!startLocation || !destinationLocation) {
+                    return; 
+                }
+                
+                const distance = startLocation.getDistance(destinationLocation);
+
+                if (distance < 350) {
+                    if (timerContainer) {
+                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
                     }
-
-                    if (routeData && routeType) {
-                        drawRoute(routeData);
-                        displayRouteInfo(routeData, routeType);
-                    } else {
-                        timerContainer.innerHTML = `⚠️ No route found.`;
+                    if (currentRouteLayer) {
+                        currentRouteLayer.setMap(null);
+                        currentRouteLayer = null;
                     }
-                }
-            }
-
-            function handleGeolocationError(error) {
-                timerContainer.innerHTML = "GPS error. 🤯";
-                console.error("Geolocation API Error:", error);
-                updatePosition({ coords: { latitude: DEFAULT_POSITION.getLat(), longitude: DEFAULT_POSITION.getLng() } });
-            }
-            
-            // --- Updated geocodeAddress function for more robust address parsing ---
-            function geocodeAddress(address) {
-                return new Promise((resolve, reject) => {
-                    const geocoder = new kakao.maps.services.Geocoder();
-                    
-                    const searchAndResolve = (query, onFail) => {
-                        geocoder.addressSearch(query, (result, status) => {
-                            if (status === kakao.maps.services.Status.OK && result.length > 0) {
-                                resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
-                            } else {
-                                onFail();
-                            }
-                        });
-                    };
-                    
-                    // Attempt 1: Full address
-                    searchAndResolve(address, () => {
-                        console.log("Original address failed. Trying simplified address.");
-                        
-                        // Attempt 2: Simplify by removing floor/lot details
-                        const simplifiedAddress1 = address.replace(/(지하|번지)\s?\d+-\d+\s?\d*층?/, '');
-                        
-                        searchAndResolve(simplifiedAddress1, () => {
-                            console.log("Simplified address failed. Trying even simpler address.");
-                            
-                            // Attempt 3: Simplify further to just the core street/dong name
-                            const simplifiedAddress2 = simplifiedAddress1.split(' ').slice(0, -1).join(' ');
-                            
-                            searchAndResolve(simplifiedAddress2, () => {
-                                console.error("All geocoding attempts failed.");
-                                reject(new Error('All geocoding attempts failed.'));
-                            });
-                        });
-                    });
-                });
-            }
-            
-            function getDistance(p1, p2) {
-                const R = 6371e3;
-                const φ1 = p1.getLat() * Math.PI/180;
-                const φ2 = p2.getLat() * Math.PI/180;
-                const Δφ = (p2.getLat()-p1.getLat()) * Math.PI/180;
-                const Δλ = (p2.getLng()-p1.getLng()) * Math.PI/180;
-                const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                          Math.cos(φ1) * Math.cos(φ2) *
-                          Math.sin(Δλ/2) * Math.sin(Δλ/2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                return R * c;
-            }
-
-            // --- Fetches a bicycle route using the Kakao Mobility API ---
-            async function fetchBicycleRoute(start, end) {
-                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
-                const headers = {
-                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
-                    'Content-Type': 'application/json'
-                };
-                const body = {
-                    origin: {
-                        x: start.getLng(),
-                        y: start.getLat()
-                    },
-                    destination: {
-                        x: end.getLng(),
-                        y: end.getLat()
-                    },
-                    priority: 'BICYCLE' // Specifies a bicycle route
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(body)
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
-                }
-                return response.json();
-            }
-
-            // --- Fetches a car route using the Kakao Mobility API ---
-            async function fetchCarRoute(start, end) {
-                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
-                const headers = {
-                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
-                    'Content-Type': 'application/json'
-                };
-                const body = {
-                    origin: {
-                        x: start.getLng(),
-                        y: start.getLat()
-                    },
-                    destination: {
-                        x: end.getLng(),
-                        y: end.getLat()
-                    },
-                    priority: 'TRAFFIC' // Specifies a car route with traffic
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(body)
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
-                }
-                return response.json();
-            }
-            
-            // --- Fetches a walking route using the Kakao Mobility API ---
-            async function fetchWalkingRoute(start, end) {
-                const url = 'https://apis-navi.kakaomobility.com/v1/directions';
-                const headers = {
-                    'Authorization': `KakaoAK ${KAKAO_REST_KEY}`,
-                    'Content-Type': 'application/json'
-                };
-                const body = {
-                    origin: {
-                        x: start.getLng(),
-                        y: start.getLat()
-                    },
-                    destination: {
-                        x: end.getLng(),
-                        y: end.getLat()
-                    },
-                    priority: 'WALK' // Specifies a walking route
-                };
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify(body)
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(`API error: ${errorData.msg || 'Unknown error'}`);
-                }
-                return response.json();
-            }
-
-            function drawRoute(routeData) {
-                if (polyline) polyline.setMap(null);
-
-                if (!routeData || !routeData.routes || routeData.routes.length === 0) {
-                    timerContainer.innerHTML = `⚠️ No route found.`;
-                    console.warn("Kakao Mobility API returned no route data.");
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
                     return;
                 }
 
-                const lines = routeData.routes[0].sections.flatMap(section => 
-                    section.roads.flatMap(road => 
-                        road.vertexes.map((_, i, arr) => {
-                            if (i % 2 === 0 && i < arr.length - 1) {
-                                return new kakao.maps.LatLng(arr[i+1], arr[i]);
-                            }
-                        }).filter(Boolean)
-                    )
-                );
+                const orsCoords = [
+                    startLocation.getLng(), 
+                    startLocation.getLat()
+                ];
+                
+                const destCoords = [
+                    destinationLocation.getLng(),
+                    destinationLocation.getLat()
+                ];
 
-                polyline = new kakao.maps.Polyline({
-                    path: lines,
-                    strokeWeight: 5,
-                    strokeColor: '#0055ff',
-                    strokeOpacity: 0.7,
-                    strokeStyle: 'solid'
-                });
-                polyline.setMap(map);
+                try {
+                    const directionsUrl = `https://apis-navi.kakaomobility.com/v1/directions`;
+                    
+                    const response = await fetch(directionsUrl + `?origin=${orsCoords}&destination=${destCoords}&priority=TIME&car_fuel=GASOLINE&car_hipass=false&alternatives=false&road_details=false&road_infos=true&summary=true`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `KakaoAK ${KAKAO_REST_API_KEY}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.msg || `API request failed with status: ${response.status}`;
+                        throw new Error(`An error occurred: ${errorMessage}.`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const durationInSeconds = route.summary.duration;
+                        
+                        const polyline = route.sections[0].roads.reduce((acc, current) => {
+                            acc.push(...current.vertexes);
+                            return acc;
+                        }, []);
+
+                        const linePath = [];
+                        for (let i = 0; i < polyline.length; i+=2) {
+                            const lat = polyline[i+1];
+                            const lng = polyline[i];
+                            linePath.push(new kakao.maps.LatLng(lat, lng));
+                        }
+
+                        if (currentRouteLayer) {
+                            currentRouteLayer.setPath(linePath);
+                        } else {
+                            currentRouteLayer = new kakao.maps.Polyline({
+                                path: linePath,
+                                strokeWidth: 5,
+                                strokeColor: '#0066FF',
+                                strokeOpacity: 0.8,
+                                strokeStyle: 'solid'
+                            });
+                            currentRouteLayer.setMap(map);
+                        }
+                        
+                        const durationInMinutes = Math.round(durationInSeconds / 60);
+                        
+                        if (timerContainer) {
+                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
+                        }
+                        
+                        const bounds = new kakao.maps.LatLngBounds();
+                        bounds.extend(startLocation);
+                        bounds.extend(destinationLocation);
+                        map.setBounds(bounds);
+
+                    } else {
+                         handleError("🤯 GPS out or simplify the address");
+                    }
+
+                } catch (error) {
+                    console.error("Routing Error:", error);
+                    handleError(error.message.includes("Invalid API key") ? "Invalid API Key 🤯" : "🤯 GPS out or simplify the address");
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                }
             }
 
-            // --- displayRouteInfo now accepts a routeType parameter to add an emoji ---
-            function displayRouteInfo(routeData, routeType) {
-                const route = routeData.routes[0];
-                const duration = Math.round(route.summary.duration / 60);
-                let emoji = '';
-                switch (routeType) {
-                    case 'car':
-                        emoji = '🚗';
-                        break;
-                    case 'bicycle':
-                        emoji = '🚲';
-                        break;
-                    case 'walk':
-                        emoji = '🚶';
-                        break;
-                }
-                timerContainer.innerHTML = `<b>${duration} min ${emoji}</b>`;
+            function handleError(message) {
+                 if (timerContainer) {
+                      timerContainer.innerHTML = message;
+                 }
+                 if (startMarker) {
+                     const infowindow = new kakao.maps.InfoWindow({
+                         content: `<div style="padding:5px;font-size:12px;">${message}</div>`,
+                         removable: true
+                     });
+                     infowindow.open(map, startMarker);
+                 }
             }
             
-            setTimeout(init, 100);
-        });
+            window.addEventListener('load', init);
+        })();
     </script>
 </body>
 </html>
