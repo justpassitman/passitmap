@@ -15,6 +15,10 @@
         }
 
         .widget-container {
+            /*
+             * The background of the entire widget container is now semi-transparent.
+             */
+            background-color: rgba(255, 255, 255, 0.5);
             position: fixed;
             top: 20px;
             right: 20px;
@@ -43,10 +47,13 @@
         }
         
         /*
-         * This CSS rule hides the Kakao Maps attribution text at the bottom-left of the map.
+         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
          * The !important flag is used to ensure it overrides the inline styles from the SDK.
          */
-        #map .kakao-maps-sdk {
+        #map .kakao-maps-sdk,
+        #map .View_logo,
+        #map .View_copyright,
+        #map .View_copyright a {
             display: none !important;
         }
 
@@ -295,7 +302,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 🤯';
+                            timerContainer.innerHTML = 'Address not found. �';
                         }
                     }
                 } catch (error) {
@@ -509,3 +516,4 @@
     </script>
 </body>
 </html>
+�
