@@ -113,6 +113,10 @@
                         keyboardShortcuts: false
                     });
 
+                    // *** THIS IS THE KEY FIX ***
+                    // Trigger a map resize event after initialization to force it to redraw itself.
+                    kakao.maps.event.trigger(map, 'resize');
+
                     geocodeAddress(destinationAddress).then(coords => {
                         destinationCoords = coords;
                         destinationMarker = new kakao.maps.Marker({
@@ -137,40 +141,3 @@
                     });
                 } else {
                     timerContainer.innerHTML = "Geolocation not supported.";
-                }
-            }
-            
-            async function updatePosition(position) {
-                // Check if the geolocation position is valid
-                if (!position || !position.coords) {
-                    timerContainer.innerHTML = "GPS out. 🤯";
-                    console.error("Geolocation data is missing or invalid.");
-                    return;
-                }
-                
-                const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
-
-                if (!userMarker) {
-                    userMarker = new kakao.maps.Marker({
-                        map: map,
-                        image: new kakao.maps.MarkerImage(
-                            'duck.png',
-                            new kakao.maps.Size(38, 38),
-                            { offset: new kakao.maps.Point(19, 38) }
-                        ),
-                        position: currentCoords
-                    });
-                } else {
-                    userMarker.setPosition(currentCoords);
-                }
-                map.setCenter(currentCoords);
-
-                // Check if destinationCoords are available before calculating distance
-                if (!destinationCoords) {
-                    timerContainer.innerHTML = "Destination not found. 🤯";
-                    return;
-                }
-
-                const distanceToDest = getDistance(currentCoords, destinationCoords);
-                if (distanceToDest < 350) {
-                    timerContainer.innerHTML = `<b><span class="wig
