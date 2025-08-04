@@ -41,6 +41,14 @@
             height: 100%;
             width: 100%;
         }
+        
+        /*
+         * This CSS rule hides the Kakao Maps attribution text at the bottom-left of the map.
+         * The !important flag is used to ensure it overrides the inline styles from the SDK.
+         */
+        #map .kakao-maps-sdk {
+            display: none !important;
+        }
 
         .timer-container {
             position: absolute;
@@ -145,10 +153,9 @@
                     startMarker.setMap(null);
                 }
 
-                // Using a placeholder image for the duck, as local files are not accessible in the preview.
-                // Replace 'https://placehold.co/40x40/000000/ffffff?text=%F0%9F%A6%86' with your local 'duck.png'
-                // like this: 'duck.png' when running the file locally.
-                const imageSrc = 'https://placehold.co/40x40/000000/ffffff?text=%F0%9F%A6%86';
+                // Changed the image source to a relative path to your local 'duck.png' file.
+                // This will work when the file is run from your local machine with the image in the same directory.
+                const imageSrc = 'duck.png';
                 const imageSize = new kakao.maps.Size(40, 40);
                 const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
