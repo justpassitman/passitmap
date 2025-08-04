@@ -82,11 +82,8 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services"></script>
 
     <script>
-        // === API keys provided by the user ===
         const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';
         const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63';
-
-        // The minimum distance the user must move (in meters) before a new API call is made.
         const MIN_DISTANCE_FOR_API_CALL = 350;
 
         let map = null;
@@ -98,19 +95,16 @@
         let locationWatchId = null;
         let timerContainer = null;
         
-        // Define the URL parameter-based destination
         const urlParams = new URLSearchParams(window.location.search);
         const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
 
         function init() {
-            // Correctly initialize the KakaoMap
             timerContainer = document.getElementById('timer-container');
             const mapContainer = document.getElementById('map');
             
-            // Check if the map container exists before initializing the map
             if (mapContainer) {
                 map = new kakao.maps.Map(mapContainer, {
-                    center: new kakao.maps.LatLng(37.566826, 126.9786567), // Default to Seoul
+                    center: new kakao.maps.LatLng(37.566826, 126.9786567),
                     level: 3,
                     disableDoubleClick: true,
                     draggable: true,
@@ -118,7 +112,7 @@
                     keyboardShortcuts: false
                 });
 
-                // Geocode the destination once and start live tracking
+                // Use the improved geocoding function
                 geocodeAddress(destinationAddress).then(coords => {
                     destinationCoords = coords;
                     destinationMarker = new kakao.maps.Marker({
@@ -149,12 +143,11 @@
         async function updatePosition(position) {
             const currentCoords = new kakao.maps.LatLng(position.coords.latitude, position.coords.longitude);
 
-            // Create or update the user's marker
             if (!userMarker) {
                 userMarker = new kakao.maps.Marker({
                     map: map,
                     image: new kakao.maps.MarkerImage(
-                        'https://i.imgur.com/gK52L9o.png', // Using a public image for the duck marker
+                        'https://i.imgur.com/gK52L9o.png',
                         new kakao.maps.Size(38, 38),
                         { offset: new kakao.maps.Point(19, 38) }
                     ),
@@ -163,9 +156,8 @@
             } else {
                 userMarker.setPosition(currentCoords);
             }
-            map.setCenter(currentCoords); // Keep the user's location centered
+            map.setCenter(currentCoords);
 
-            // Check distance to destination
             const distanceToDest = getDistance(currentCoords, destinationCoords);
             if (distanceToDest < 350) {
                 timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
@@ -174,7 +166,6 @@
                 return;
             }
 
-            // Periodically update the route based on a distance threshold
             if (!lastApiCallPosition || getDistance(currentCoords, lastApiCallPosition) > MIN_DISTANCE_FOR_API_CALL) {
                 lastApiCallPosition = currentCoords;
                 try {
@@ -183,7 +174,6 @@
                     displayRouteInfo(routeData);
                 } catch (error) {
                     console.error("Error fetching route:", error);
-                    // Handle API errors gracefully
                     timerContainer.innerHTML = "🤯 GPS out or simplify the address";
                 }
             }
@@ -194,20 +184,35 @@
             console.error(error);
         }
 
-        // Helper function for geocoding
+        // Improved geocoding function with a fallback to a simplified address
         function geocodeAddress(address) {
             return new Promise((resolve, reject) => {
-                new kakao.maps.services.Geocoder().addressSearch(address, function(result, status) {
-                    if (status === kakao.maps.services.Status.OK) {
-                        resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
+                const geocoder = new kakao.maps.services.Geocoder();
+                
+                const searchAndResolve = (query) => {
+                    geocoder.addressSearch(query, function(result, status) {
+                        if (status === kakao.maps.services.Status.OK) {
+                            resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
+                        } else {
+                            reject(new Error(`Could not geocode address: ${query}`));
+                        }
+                    });
+                };
+                
+                // First, try to geocode the full address
+                searchAndResolve(address).catch(() => {
+                    // If the first attempt fails, simplify the address and try again
+                    const simplifiedAddress = address.replace(/\s\d+호$/, '');
+                    if (simplifiedAddress !== address) {
+                        searchAndResolve(simplifiedAddress);
                     } else {
+                        // If no simplification is possible, reject
                         reject(new Error(`Could not geocode address: ${address}`));
                     }
                 });
             });
         }
         
-        // Helper function to calculate distance between two LatLng objects (Haversine formula)
         function getDistance(p1, p2) {
             const R = 6371e3;
             const φ1 = p1.getLat() * Math.PI/180;
@@ -221,7 +226,6 @@
             return R * c;
         }
 
-        // Helper function to fetch the bicycle route from the REST API
         async function fetchBicycleRoute(start, end) {
             const url = 'https://apis-navi.kakaomobility.com/v1/directions';
             const headers = { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` };
@@ -239,7 +243,6 @@
             return response.json();
         }
 
-        // Helper function to draw the polyline on the map
         function drawRoute(routeData) {
             if (polyline) polyline.setMap(null);
 
@@ -260,17 +263,4 @@
                 strokeOpacity: 0.7,
                 strokeStyle: 'solid'
             });
-            polyline.setMap(map);
-        }
-
-        // Helper function to display route information
-        function displayRouteInfo(routeData) {
-            const route = routeData.routes[0];
-            const duration = Math.round(route.summary.duration / 60); // minutes
-            timerContainer.innerHTML = `<b>${duration} min</b>`;
-        }
-        
-        window.addEventListener('load', init);
-    </script>
-</body>
-</html>
+            polyline.set
