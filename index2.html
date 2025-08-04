@@ -13,7 +13,7 @@
             padding: 0;
             overflow: hidden;
         }
-        
+
         .widget-container {
             position: fixed;
             top: 20px;
@@ -82,8 +82,8 @@
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_JS_KEY&libraries=services"></script>
 
     <script>
-
-        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72'; // Your JavaScript key for map display
+        // === IMPORTANT: Replace these with your actual keys ===
+        const KAKAO_JS_KEY = '00a03dac8488d12731e4021756938e72';     // Your JavaScript key for map display
         const KAKAO_REST_KEY = 'dad89b90a6acaa5acadc74e2329cab63'; // Your REST API key for directions
 
         // The minimum distance the user must move (in meters) before a new API call is made.
@@ -98,18 +98,19 @@
         let locationWatchId = null;
         let timerContainer = null;
         
+        // Define the URL parameter-based destination
         const urlParams = new URLSearchParams(window.location.search);
         const destinationAddress = urlParams.get('destination') || '대한민국 서울특별시 중구 세종대로 110';
 
         function init() {
-            // Initialize the KakaoMap
+            // Correctly initialize the KakaoMap
             timerContainer = document.getElementById('timer-container');
             map = new kakao.maps.Map(document.getElementById('map'), {
                 center: new kakao.maps.LatLng(37.566826, 126.9786567), // Default to Seoul
                 level: 3,
                 disableDoubleClick: true,
                 draggable: true,
-                scrollwheel: true,
+                scrollwheel: false,
                 keyboardShortcuts: false
             });
 
@@ -146,7 +147,7 @@
                 userMarker = new kakao.maps.Marker({
                     map: map,
                     image: new kakao.maps.MarkerImage(
-                        'https://i.imgur.com/gK52L9o.png', // Duck icon from your previous code (using a public image host)
+                        'https://i.imgur.com/gK52L9o.png', // Using a public image for the duck marker
                         new kakao.maps.Size(38, 38),
                         { offset: new kakao.maps.Point(19, 38) }
                     ),
@@ -199,10 +200,9 @@
             });
         }
         
-        // Helper function to calculate distance between two LatLng objects
+        // Helper function to calculate distance between two LatLng objects (Haversine formula)
         function getDistance(p1, p2) {
-            // Using the Haversine formula
-            const R = 6371e3; // metres
+            const R = 6371e3;
             const φ1 = p1.getLat() * Math.PI/180;
             const φ2 = p2.getLat() * Math.PI/180;
             const Δφ = (p2.getLat()-p1.getLat()) * Math.PI/180;
