@@ -133,30 +133,50 @@
         .wiggle-duck {
             animation: wiggle-duck 0.5s ease-in-out infinite;
         }
-        
+
         /*
-        * Removed the glow-green animation.
-        * Added a thick dark green border around the destination marker container.
+        * The destination marker now uses a clip-path for an upside-down triangle shape
+        * and a light green background.
         */
-        .destination-marker-container {
-            border: 4px solid darkgreen;
-            border-radius: 9999px; /* Fully rounded corners for the border */
-            box-sizing: border-box; /* Ensures padding and border are included in the element's total width and height */
-            transition: all 0.3s ease-in-out;
+        .triangle-marker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #90ee90; /* light green */
+            clip-path: polygon(0% 100%, 50% 0%, 100% 100%);
         }
-        
+
         /*
         * Styling for the destination image itself.
         */
         .destination-image {
             width: 100%;
             height: 100%;
+            position: relative;
+            z-index: 10;
         }
 
         /*
-        * New animation for the 'f.png' image to make it jump slowly.
+        * New animation for the 'd.png' image to make it balance gently.
         */
-        @keyframes jump-f-png {
+        @keyframes balance-animation {
+            0%, 100% { transform: rotateZ(0deg); }
+            25% { transform: rotateZ(-5deg); }
+            75% { transform: rotateZ(5deg); }
+        }
+
+        .balance-animation {
+            animation: balance-animation 2s ease-in-out infinite;
+            transform-origin: center;
+        }
+        
+        /*
+        * The animation for the 'f.png' image is now 60% faster.
+        * The duration has been reduced from 2s to 0.8s.
+        */
+        @keyframes fast-jump-f-png {
             0%, 100% {
                 transform: translateY(0);
             }
@@ -165,8 +185,8 @@
             }
         }
 
-        .jump-f-png {
-            animation: jump-f-png 2s ease-in-out infinite;
+        .fast-jump-f-png {
+            animation: fast-jump-f-png 0.8s ease-in-out infinite;
             transform-origin: center;
         }
     </style>
@@ -267,6 +287,7 @@
                 
                 // Calculate destination marker size
                 const destinationScale = duckScale * destinationSizeMultiplier;
+                // Update the parent container's size to match the calculated scale
                 destinationImageElement.parentElement.style.width = `${destinationScale}px`;
                 destinationImageElement.parentElement.style.height = `${destinationScale}px`;
             }
@@ -307,7 +328,7 @@
                         map: map,
                         position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
                         content: content,
-                        yAnchor: 1.0, 
+                        yAnchor: 1.1, /* Adjusted to lower the marker by 10% */
                         zIndex: 2
                     });
                 }
@@ -327,9 +348,10 @@
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 const destinationScale = duckScale * destinationSizeMultiplier;
 
-                // The new HTML content for the glowing marker using the `d.png` image.
+                // The HTML content for the new triangle marker.
                 const content = `
-                    <div id="destination-marker-container" class="destination-marker-container flex items-center justify-center rounded-full" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                    <div id="destination-marker-container" class="relative flex items-center justify-center" style="width: ${destinationScale}px; height: ${destinationScale}px; transform-origin: center bottom;">
+                         <div class="triangle-marker"></div>
                          <img id="destination-image" src="${destinationImageSrc}" alt="Destination" class="destination-image">
                     </div>
                 `;
@@ -338,7 +360,7 @@
                     map: map,
                     position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
                     content: content,
-                    yAnchor: 1.0,
+                    yAnchor: 1.1, /* Adjusted to lower the marker by 10% */
                     zIndex: 1
                 });
             }
@@ -489,7 +511,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -611,7 +633,10 @@
                 
                 // Clear any existing animations for a clean state.
                 if (duckImageElement) duckImageElement.classList.remove('wiggle-duck');
-                if (destinationImageElement) destinationImageElement.classList.remove('jump-f-png');
+                if (destinationImageElement) {
+                    destinationImageElement.classList.remove('balance-animation');
+                    destinationImageElement.classList.remove('fast-jump-f-png');
+                }
                 
                 // Always set the destination image to d.png by default.
                 if (destinationImageElement) {
@@ -635,10 +660,10 @@
                         locationWatchId = null;
                     }
                     
-                    // Change the destination marker to 'f.png' and add the slow jump animation
+                    // Change the destination marker to 'f.png' and add the faster jump animation
                     if (destinationImageElement) {
                         destinationImageElement.src = chickImageSrc;
-                        destinationImageElement.classList.add('jump-f-png');
+                        destinationImageElement.classList.add('fast-jump-f-png');
                     }
                     return;
 
@@ -648,9 +673,9 @@
                         // The timer will be updated by the API call, but we can set a temporary message
                         timerContainer.innerHTML = 'Getting close...';
                     }
-                    // The destination marker remains d.png, and we add the slow jump animation
+                    // The destination marker remains d.png, and we add the new balancing animation
                     if (destinationImageElement) {
-                        destinationImageElement.classList.add('jump-f-png');
+                        destinationImageElement.classList.add('balance-animation');
                     }
                 } else {
                     // State 3: Far from destination
@@ -757,4 +782,3 @@
     </script>
 </body>
 </html>
-�
