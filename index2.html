@@ -1,703 +1,252 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Duck Delivery Livestream Widget</title>
-    <!--
-    * Tailwind CSS is loaded from a CDN for simple utility-first styling.
-    -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            background-color: transparent;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-        }
+import { useState, useRef, useEffect } from 'react';
+import * as THREE from 'three';
 
-        .widget-container {
-            /*
-            * The background of the entire widget container is now transparent.
-            */
-            background-color: rgba(255, 255, 255, 0);
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 150px;
-            height: 188px;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            z-index: 1000;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
+// Import and use a responsive icon from a library like lucide-react
+import { Play, Pause, RotateCcw } from 'lucide-react';
 
-        .map-container {
-            flex-grow: 1;
-            padding: 0;
-            height: 100%;
-            border-radius: 0;
-            box-shadow: none;
-            position: relative;
-        }
+// Main application component
+export default function App() {
+  // State for controlling play/pause functionality
+  const [isPlaying, setIsPlaying] = useState(true);
+  const canvasRef = useRef(null);
+  const cameraRef = useRef(null);
+  const sceneRef = useRef(null);
+  const rendererRef = useRef(null);
+  const particlesRef = useRef(null);
+  const velocitiesRef = useRef([]);
+  const animationFrameRef = useRef(null);
 
-        #map {
-            height: 100%;
-            width: 100%;
-            /*
-            * The map's opacity is now set to 80%.
-            */
-            opacity: 0.8;
-        }
+  // Initialize the Three.js scene
+  useEffect(() => {
+    // Canvas setup
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Dimensions
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    // Create scene, camera, and renderer
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
+
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    camera.position.z = 5;
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(width, height);
+    rendererRef.current = renderer;
+
+    // Create particles
+    const particleCount = 1000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const colors = [];
+    velocitiesRef.current = [];
+
+    const color = new THREE.Color();
+    // Generate particles with random positions, colors, and velocities
+    for (let i = 0; i < particleCount; i++) {
+      // Position
+      positions.push(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
+
+      // Color
+      color.setHSL(Math.random(), 1.0, 0.5);
+      colors.push(color.r, color.g, color.b);
+
+      // Velocity (increased by a factor of 10)
+      velocitiesRef.current.push(
+        (Math.random() - 0.5) * 0.05 * 10, // X velocity
+        (Math.random() - 0.5) * 0.05 * 10, // Y velocity
+        (Math.random() - 0.5) * 0.05 * 10  // Z velocity
+      );
+    }
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    // Material (size of dots is 1/10th of the previous value)
+    const material = new THREE.PointsMaterial({
+      size: 0.01,
+      vertexColors: true,
+      blending: THREE.AdditiveBlending,
+      transparent: true
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+    particlesRef.current = particles;
+
+    // Handle window resizing
+    const handleResize = () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+      camera.aspect = newWidth / newHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(newWidth, newHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup function
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      renderer.dispose();
+    };
+  }, []);
+
+  // Animation loop
+  useEffect(() => {
+    const animate = () => {
+      if (!isPlaying) {
+        return;
+      }
+
+      const particles = particlesRef.current;
+      const velocities = velocitiesRef.current;
+      if (particles) {
+        const positions = particles.geometry.attributes.position.array;
         
-        /*
-        * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
-        * The !important flag is used to ensure it overrides the inline styles from the SDK.
-        */
-        #map .kakao-maps-sdk,
-        #map .View_logo,
-        #map .View_copyright,
-        #map .View_copyright a {
-            display: none !important;
+        // Update particle positions based on velocity
+        for (let i = 0; i < positions.length; i += 3) {
+          positions[i] += velocities[i];
+          positions[i + 1] += velocities[i + 1];
+          positions[i + 2] += velocities[i + 2];
+
+          // Simple boundary check to wrap particles around
+          if (positions[i] > 5 || positions[i] < -5) velocities[i] *= -1;
+          if (positions[i + 1] > 5 || positions[i + 1] < -5) velocities[i + 1] *= -1;
+          if (positions[i + 2] > 5 || positions[i + 2] < -5) velocities[i + 2] *= -1;
         }
 
-        .timer-container {
-            position: absolute;
-            bottom: 0.75rem;
-            left: 50%;
-            transform: translateX(-50%);
-            max-width: 90%;
-            /*
-            * The background is now a solid white for full opacity.
-            */
-            background-color: #fff;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            z-index: 1001;
-            padding: 0.75rem;
-            text-align: center;
-            font-size: 100%;
-            font-weight: bold;
-            color: #333;
-            /*
-            * The opacity has been changed to 80%.
-            */
-            opacity: 0.8;
-        }
+        particles.geometry.attributes.position.needsUpdate = true;
+      }
 
-        .error-message {
-            color: red;
-            text-align: center;
-            padding: 20px;
-            font-size: 14px;
-        }
+      rendererRef.current.render(sceneRef.current, cameraRef.current);
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
 
-        @keyframes wiggle-up-down {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-5px);
-            }
-        }
+    if (isPlaying) {
+      animate();
+    } else {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    }
 
-        .wiggle-text {
-            display: inline-block;
-            animation: wiggle-up-down 1s ease-in-out infinite;
-        }
+    // Return a cleanup function
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [isPlaying]);
 
-        /*
-        * CSS for the animated dots
-        */
-        .animated-dot {
-            width: 8px;
-            height: 8px;
-            background-color: #34D399; /* Green color */
-            border-radius: 50%;
-            box-shadow: 0 0 5px 2px #34D399; /* Initial glow */
-            position: absolute;
-            animation: pulse-glow 2s infinite ease-in-out;
-            transform: translate(-50%, -50%); /* Center the dot on the coordinates */
-        }
-        
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 5px 2px #34D399; }
-            50% { box-shadow: 0 0 10px 4px #10B981; } /* Brighter glow */
-            100% { box-shadow: 0 0 5px 2px #34D399; }
-        }
-    </style>
-    <!--
-    * Kakao JavaScript API key provided by the user.
-    * The `libraries=services` part is essential for geocoding.
-    -->
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
-</head>
-<body class="bg-gray-100">
+  // Handle camera rotation with mouse movement
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    <div class="widget-container">
-        <div class="map-container rounded-b-xl">
-            <div id="map"></div>
-            <div id="timer-container" class="timer-container"></div>
-        </div>
+    let isDragging = false;
+    let previousMousePosition = {
+      x: 0,
+      y: 0
+    };
+
+    const handleMouseDown = (e) => {
+      isDragging = true;
+      previousMousePosition = {
+        x: e.clientX,
+        y: e.clientY
+      };
+    };
+
+    const handleMouseUp = () => {
+      isDragging = false;
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDragging || !cameraRef.current) return;
+
+      const deltaMove = {
+        x: e.clientX - previousMousePosition.x,
+        y: e.clientY - previousMousePosition.y
+      };
+
+      const rotationSpeed = 0.005;
+
+      const newRotationY = cameraRef.current.rotation.y - deltaMove.x * rotationSpeed;
+      const newRotationX = cameraRef.current.rotation.x - deltaMove.y * rotationSpeed;
+
+      cameraRef.current.rotation.y = newRotationY;
+      cameraRef.current.rotation.x = newRotationX;
+
+      previousMousePosition = {
+        x: e.clientX,
+        y: e.clientY
+      };
+    };
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mousemove', handleMouseMove);
+
+    return () => {
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, []);
+
+  const handleReset = () => {
+    // Reset camera position and rotation
+    const camera = cameraRef.current;
+    if (camera) {
+      camera.position.set(0, 0, 5);
+      camera.rotation.set(0, 0, 0);
+    }
+
+    // Reset particle positions and velocities
+    const particles = particlesRef.current;
+    if (particles) {
+      const positions = particles.geometry.attributes.position.array;
+      const velocities = velocitiesRef.current;
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i] = Math.random() * 10 - 5;
+        positions[i + 1] = Math.random() * 10 - 5;
+        positions[i + 2] = Math.random() * 10 - 5;
+
+        velocities[i] = (Math.random() - 0.5) * 0.05 * 10;
+        velocities[i + 1] = (Math.random() - 0.5) * 0.05 * 10;
+        velocities[i + 2] = (Math.random() - 0.5) * 0.05 * 10;
+      }
+      particles.geometry.attributes.position.needsUpdate = true;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen w-screen bg-gray-900 text-white font-sans overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-center space-x-4">
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+          title={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+        </button>
+        <button
+          onClick={handleReset}
+          className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full shadow-lg transition-transform transform hover:scale-105 active:scale-95 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+          title="Reset"
+        >
+          <RotateCcw size={24} />
+        </button>
+      </div>
+      <canvas ref={canvasRef} className="block w-full h-full" />
     </div>
-
-    <script>
-        (function() {
-            // OpenRouteService API key from the user's original code.
-            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlODExMjE5MGJmZDQ4MTE5ODZlMzk2MjJhMzA0ZGNiIiwiaCI6Im11cm11cjY0In0=";
-            
-            // Kakao REST API key from the user's original code for geocoding.
-            const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
-            const minDistanceForApiCall = 300;
-
-            let map = null;
-            let startLocation = null;
-            let destinationLocation = null;
-            let lastKnownPosition = null;
-            let lastApiCallPosition = null;
-            let startMarker = null;
-            let destinationMarker = null;
-            let routePolyline = null;
-            let locationWatchId = null;
-            let timerContainer = null;
-            let isMapInitialized = false;
-
-            // Variables for the new animation
-            let animatedDots = [];
-            let animationFrameId = null;
-            const numDots = 8; // Number of animated dots
-            const dotSpeed = 0.005; // Speed of the dots along the path (higher = faster)
-            let animationStartTime = null;
-
-            /**
-             * Initializes the map and fetches the destination from URL parameters.
-             */
-            function init() {
-                timerContainer = document.getElementById('timer-container');
-                /*
-                * Display a loading message while the route is being calculated.
-                */
-                timerContainer.innerHTML = '⏳';
-                const mapContainer = document.getElementById('map');
-                const mapOption = {
-                    center: new kakao.maps.LatLng(37.5665, 126.9780),
-                    level: 9,
-                    draggable: false,
-                    scrollwheel: false,
-                    disableDoubleClick: true,
-                    disableDoubleClickZoom: true
-                };
-                map = new kakao.maps.Map(mapContainer, mapOption);
-                isMapInitialized = true;
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const destination = urlParams.get('destination');
-                
-                if (destination) {
-                    processDestination(destination);
-                } else {
-                    // Set a default start location if no destination is provided.
-                    startLocation = [37.5665, 126.9780];
-                    setStartMarker();
-                }
-            }
-
-            /**
-             * Updates the start marker on the map with the latest position.
-             */
-            function setStartMarker() {
-                if (!isMapInitialized) return;
-
-                if (startMarker) {
-                    startMarker.setMap(null);
-                }
-
-                // Changed the image source to a relative path to your local 'duck.png' file.
-                // This will work when the file is run from your local machine with the image in the same directory.
-                const imageSrc = 'duck.png';
-                const imageSize = new kakao.maps.Size(40, 40);
-                const imageOption = { offset: new kakao.maps.Point(20, 40) };
-                
-                const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
-
-                startMarker = new kakao.maps.Marker({
-                    map: map,
-                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
-                    image: markerImage
-                });
-            }
-
-            /**
-             * A new function to automatically adjust the map view to fit both the start and destination markers.
-             * This ensures both are always visible, which was the main problem.
-             */
-            function updateMapViewToFitMarkers() {
-                if (!isMapInitialized || !startLocation || !destinationLocation) {
-                    return;
-                }
-                
-                const bounds = new kakao.maps.LatLngBounds();
-                bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                map.setBounds(bounds);
-            }
-
-            /**
-             * Tries to geocode an address using the Kakao REST API.
-             * @param {string} query The address string to geocode.
-             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-             */
-            async function tryGeocodeWithKakao(query) {
-                if (!KAKAO_API_KEY) {
-                    throw new Error("Kakao REST API key is missing. Geocoding will not work.");
-                }
-
-                const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
-                try {
-                    const kakaoResponse = await fetch(kakaoGeocodeUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `KakaoAK ${KAKAO_API_KEY}`
-                        }
-                    });
-
-                    if (!kakaoResponse.ok) {
-                        console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
-                        if (kakaoResponse.status === 401 || kakaoResponse.status === 403) {
-                            throw new Error("Invalid Kakao REST API key. Please check your key.");
-                        }
-                        return null;
-                    }
-
-                    const kakaoData = await kakaoResponse.json();
-                    if (kakaoData.documents && kakaoData.documents.length > 0) {
-                        const firstResult = kakaoData.documents[0];
-                        return {
-                            lat: parseFloat(firstResult.y),
-                            lng: parseFloat(firstResult.x),
-                            label: firstResult.address_name
-                        };
-                    }
-                } catch (error) {
-                    console.error("Kakao Geocoding failed:", error);
-                    throw error;
-                }
-                return null;
-            }
-
-            /**
-             * Tries to geocode an address using the OpenRouteService API.
-             * @param {string} query The address string to geocode.
-             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-             */
-            async function tryGeocodeWithORS(query) {
-                if (!ORS_API_KEY) {
-                    throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
-                }
-                
-                try {
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
-
-                    if (!geocodeResponse.ok) {
-                        if (geocodeResponse.status === 403) {
-                            console.error("ORS Geocoding failed: Invalid API key.");
-                            throw new Error("Invalid ORS API key.");
-                        }
-                        return null;
-                    }
-
-                    const geocodeData = await geocodeResponse.json();
-
-                    if (geocodeData.features.length > 0) {
-                        const firstResult = geocodeData.features[0];
-                        const destPoint = firstResult.geometry.coordinates;
-                        return {
-                            lat: destPoint[1],
-                            lng: destPoint[0],
-                            label: firstResult.properties.label
-                        };
-                    }
-                } catch (error) {
-                    console.error("ORS Geocoding failed:", error);
-                    throw error;
-                }
-                return null;
-            }
-
-            /**
-             * Processes the destination from the URL, geocodes it, and sets up the map.
-             * @param {string} destination The destination address from URL.
-             */
-            async function processDestination(destination) {
-                const getUserLocation = () => new Promise((resolve, reject) => {
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
-                    } else {
-                        reject(new Error("Geolocation not supported."));
-                    }
-                });
-
-                try {
-                    const position = await getUserLocation();
-                    startLocation = [position.coords.latitude, position.coords.longitude];
-
-                    let foundDestination = null;
-                    foundDestination = await tryGeocodeWithKakao(destination);
-
-                    if (!foundDestination) {
-                        foundDestination = await tryGeocodeWithORS(destination);
-                        if (!foundDestination) {
-                             const addressParts = destination.split(' ');
-                             const simplifiedAddress = addressParts.slice(0, -1).join(' ');
-                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
-                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
-                             }
-                        }
-                        if (!foundDestination) {
-                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
-                        }
-                    }
-
-                    if (foundDestination) {
-                        destinationLocation = [foundDestination.lat, foundDestination.lng];
-
-                        setStartMarker();
-
-                        if (destinationMarker) {
-                            destinationMarker.setMap(null);
-                        }
-                        
-                        destinationMarker = new kakao.maps.Marker({
-                            map: map,
-                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
-                        });
-                        
-                        const bounds = new kakao.maps.LatLngBounds();
-                        bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                        bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
-                        map.setBounds(bounds);
-
-                        lastApiCallPosition = startLocation;
-                        getRouteAndTravelTime();
-                        startLocationPolling();
-                    } else {
-                        if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
-                        }
-                    }
-                } catch (error) {
-                    console.error("Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
-                    }
-                }
-            }
-
-            /**
-             * Starts real-time location tracking and updates the map accordingly.
-             */
-            function startLocationPolling() {
-                if (locationWatchId) {
-                    navigator.geolocation.clearWatch(locationWatchId);
-                }
-
-                locationWatchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const newPosition = [position.coords.latitude, position.coords.longitude];
-
-                        if (!lastKnownPosition) {
-                            lastKnownPosition = newPosition;
-                        }
-
-                        const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
-
-                        startLocation = newPosition;
-                        setStartMarker();
-
-                        // Update the map view to always fit both the start and destination markers.
-                        updateMapViewToFitMarkers();
-
-                        if (lastApiCallPosition) {
-                            const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
-
-                            if (distanceSinceLastCall > minDistanceForApiCall) {
-                                lastApiCallPosition = newPosition;
-                                getRouteAndTravelTime();
-                            }
-                        }
-                        
-                        lastKnownPosition = newPosition;
-                    },
-                    (error) => {
-                        console.error("Real-time geolocation error:", error);
-                        if (locationWatchId) {
-                            navigator.geolocation.clearWatch(locationWatchId);
-                        }
-                    },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-            }
-
-            /**
-             * Calculates the distance between two geographical coordinates using the Haversine formula.
-             * @param {number[]} coord1 - [latitude, longitude] of the first point.
-             * @param {number[]} coord2 - [latitude, longitude] of the second point.
-             * @returns {number} The distance in meters.
-             */
-            function calculateDistance(coord1, coord2) {
-                const toRad = (x) => x * Math.PI / 180;
-                const R = 6371e3;
-                const dLat = toRad(coord2[0] - coord1[0]);
-                const dLng = toRad(coord2[1] - coord1[1]);
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                          Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
-                          Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                return R * c;
-            }
-
-            /**
-             * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
-             * @param {string} encoded - The encoded polyline string.
-             * @returns {number[][]} The decoded array of coordinates.
-             */
-            function decodePolyline(encoded) {
-                let points = [];
-                let index = 0, len = encoded.length;
-                let lat = 0, lng = 0;
-
-                while (index < len) {
-                    let b, shift = 0, result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lat += dlat;
-
-                    shift = 0;
-                    result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lng += dlng;
-
-                    points.push([lat / 1e5, lng / 1e5]);
-                }
-                return points;
-            }
-
-            /**
-             * Fetches the route and travel time from the OpenRouteService API.
-             */
-            async function getRouteAndTravelTime() {
-                if (!startLocation || !destinationLocation) {
-                    return;
-                }
-                
-                const distance = calculateDistance(startLocation, destinationLocation);
-
-                if (distance < 350) {
-                    if (timerContainer) {
-                        timerContainer.innerHTML = `<b><span class="wiggle-text">🥳</span></b>`;
-                    }
-                    if (routePolyline) {
-                         routePolyline.setMap(null);
-                         routePolyline = null;
-                         cancelAnimationFrame(animationFrameId);
-                    }
-                    if (animatedDots.length > 0) {
-                        animatedDots.forEach(dot => dot.setMap(null));
-                        animatedDots = [];
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    return;
-                }
-
-                if (!ORS_API_KEY) {
-                    console.error("OpenRouteService API key is missing.");
-                    if (timerContainer) {
-                        timerContainer.innerHTML = "ERROR: OpenRouteService API key is missing. Please add your key.";
-                    }
-                    return;
-                }
-
-                const orsCoords = [
-                    [startLocation[1], startLocation[0]],
-                    [destinationLocation[1], destinationLocation[0]]
-                ];
-
-                try {
-                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
-                    const payload = { coordinates: orsCoords };
-
-                    const response = await fetch(directionsUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': ORS_API_KEY
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
-                        if (response.status === 403) {
-                             throw new Error("OpenRouteService API key is invalid.");
-                        }
-                        throw new Error(`An error occurred: ${errorMessage}.`);
-                    }
-
-                    const data = await response.json();
-
-                    if (data && data.routes && data.routes.length > 0) {
-                        const route = data.routes[0];
-                        const encodedGeometry = route.geometry;
-                        const durationInSeconds = route.summary.duration;
-
-                        const routeCoordinates = decodePolyline(encodedGeometry);
-                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-
-                        // Clear previous polyline if it exists
-                        if (routePolyline) {
-                            routePolyline.setMap(null);
-                        }
-                        // Create a new dashed polyline for the route
-                        routePolyline = new kakao.maps.Polyline({
-                            path: path,
-                            strokeWeight: 4,
-                            strokeColor: '#34D399', // Green color
-                            strokeOpacity: 0.8,
-                            strokeStyle: 'dashed' // Dashed style
-                        });
-                        routePolyline.setMap(map);
-
-                        // Start the animation for the moving dots
-                        startAnimation(path);
-
-                        const durationInMinutes = Math.round(durationInSeconds / 60);
-
-                        if (timerContainer) {
-                            timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
-                        }
-                        
-                    } else {
-                        if (timerContainer) {
-                            timerContainer.innerHTML = "Routing data could not be found.";
-                        }
-                    }
-
-                } catch (error) {
-                    console.error("Routing Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Routing error occurred.";
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                }
-            }
-
-            /**
-             * Initializes and starts the animation of the green dots along the route.
-             * @param {Array<kakao.maps.LatLng>} path The coordinates of the route.
-             */
-            function startAnimation(path) {
-                // Clear any existing animation frames and dots
-                if (animationFrameId) {
-                    cancelAnimationFrame(animationFrameId);
-                }
-                if (animatedDots.length > 0) {
-                    animatedDots.forEach(dot => dot.setMap(null));
-                    animatedDots = [];
-                }
-
-                if (path.length < 2) return;
-
-                const pathLength = path.length;
-                const dotInterval = 1 / numDots; // Spacing between dots
-
-                // Create the animated dots as CustomOverlays
-                for (let i = 0; i < numDots; i++) {
-                    const dotPosition = (i * dotInterval) % 1; // Stagger initial positions
-                    const dot = new kakao.maps.CustomOverlay({
-                        map: map,
-                        position: path[0],
-                        content: `<div class="animated-dot"></div>`,
-                        yAnchor: 0.5,
-                        zIndex: 10
-                    });
-                    animatedDots.push({ dot: dot, progress: dotPosition });
-                }
-
-                // Main animation loop
-                function animate(timestamp) {
-                    if (!animationStartTime) {
-                        animationStartTime = timestamp;
-                    }
-                    const elapsedTime = (timestamp - animationStartTime) / 1000;
-                    
-                    animatedDots.forEach(dotObj => {
-                        dotObj.progress = (dotObj.progress + (dotSpeed * 0.016)) % 1; // 0.016 is roughly 1/60th of a second
-                        
-                        let totalDistance = 0;
-                        for (let i = 0; i < pathLength - 1; i++) {
-                            totalDistance += calculateDistance([path[i].getLat(), path[i].getLng()], [path[i+1].getLat(), path[i+1].getLng()]);
-                        }
-                        
-                        let targetDistance = totalDistance * dotObj.progress;
-                        let currentDistance = 0;
-                        let dotPosition = path[0];
-
-                        for (let i = 0; i < pathLength - 1; i++) {
-                            const segmentStart = path[i];
-                            const segmentEnd = path[i + 1];
-                            const segmentDistance = calculateDistance([segmentStart.getLat(), segmentStart.getLng()], [segmentEnd.getLat(), segmentEnd.getLng()]);
-
-                            if (currentDistance + segmentDistance >= targetDistance) {
-                                const remainingDistance = targetDistance - currentDistance;
-                                const ratio = remainingDistance / segmentDistance;
-                                const lat = segmentStart.getLat() + (segmentEnd.getLat() - segmentStart.getLat()) * ratio;
-                                const lng = segmentStart.getLng() + (segmentEnd.getLng() - segmentStart.getLng()) * ratio;
-                                dotPosition = new kakao.maps.LatLng(lat, lng);
-                                break;
-                            }
-                            currentDistance += segmentDistance;
-                        }
-
-                        dotObj.dot.setPosition(dotPosition);
-                    });
-
-                    animationFrameId = requestAnimationFrame(animate);
-                }
-                
-                animationFrameId = requestAnimationFrame(animate);
-            }
-
-            if (typeof kakao !== 'undefined' && kakao.maps) {
-                kakao.maps.load(function() {
-                    init();
-                });
-            } else {
-                const mapContainer = document.getElementById('map');
-                if (mapContainer) {
-                    mapContainer.innerHTML = '<div class="error-message">Kakao Maps API failed to load. Please check your script tag and API key.</div>';
-                }
-            }
-        })();
-    </script>
-</body>
-</html>
+  );
+}
