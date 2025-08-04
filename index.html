@@ -341,9 +341,16 @@
                 duckImageElement.style.height = `${duckScale}px`;
                 
                 // Calculate destination marker size based on the new multiplier
-                const destinationScale = duckScale * destinationSizeMultiplier;
                 const destinationContainer = document.getElementById('destination-marker-container');
                 if (destinationContainer) {
+                    const currentDistance = calculateDistance(startLocation, destinationLocation);
+                    let destinationScale = 0;
+                    if (currentDistance < arrivalDistance || currentDistance < veryFastAnimationDistance) {
+                        // The f.png marker is now double the size of the duck marker.
+                        destinationScale = duckScale * 2;
+                    } else {
+                        destinationScale = duckScale * destinationSizeMultiplier;
+                    }
                     destinationContainer.style.width = `${destinationScale}px`;
                     destinationContainer.style.height = `${destinationScale}px`;
                 }
@@ -384,12 +391,14 @@
                     className = 'destination-marker-gentle';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
-                    destinationScale = duckScale * destinationSizeMultiplier;
+                    // f.png size is now double the duck size and animated
+                    destinationScale = duckScale * 2;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 } else if (state === 'arrived') {
-                    // The destination marker is now the same size as the duck.
-                    destinationScale = duckScale;
+                    // The f.png marker is now double the size of the duck and has the very-fast animation
+                    destinationScale = duckScale * 2;
+                    className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 }
 
@@ -602,7 +611,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -925,4 +934,3 @@
     </script>
 </body>
 </html>
-�
