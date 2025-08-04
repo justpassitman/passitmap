@@ -19,8 +19,8 @@
 
         .widget-container {
             /*
-             * The background of the entire widget container is now transparent.
-             */
+            * The background of the entire widget container is now transparent.
+            */
             background-color: rgba(255, 255, 255, 0);
             position: fixed;
             top: 20px;
@@ -48,15 +48,15 @@
             height: 100%;
             width: 100%;
             /*
-             * The map's opacity is now set to 80%.
-             */
+            * The map's opacity is now set to 80%.
+            */
             opacity: 0.8;
         }
         
         /*
-         * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
-         * The !important flag is used to ensure it overrides the inline styles from the SDK.
-         */
+        * This CSS rule hides the Kakao Maps attribution text and logo at the bottom-left of the map.
+        * The !important flag is used to ensure it overrides the inline styles from the SDK.
+        */
         #map .kakao-maps-sdk,
         #map .View_logo,
         #map .View_copyright,
@@ -71,8 +71,8 @@
             transform: translateX(-50%);
             max-width: 90%;
             /*
-             * The background is now a solid white for full opacity.
-             */
+            * The background is now a solid white for full opacity.
+            */
             background-color: #fff;
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -83,8 +83,8 @@
             font-weight: bold;
             color: #333;
             /*
-             * The opacity has been changed to 80%.
-             */
+            * The opacity has been changed to 80%.
+            */
             opacity: 0.8;
         }
 
@@ -146,13 +146,13 @@
             let isMapInitialized = false;
 
             /**
-             * Initializes the map and fetches the destination from URL parameters.
-             */
+            * Initializes the map and fetches the destination from URL parameters.
+            */
             function init() {
                 timerContainer = document.getElementById('timer-container');
                 /*
-                 * Display a loading message while the route is being calculated.
-                 */
+                * Display a loading message while the route is being calculated.
+                */
                 timerContainer.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
                 const mapOption = {
@@ -179,8 +179,8 @@
             }
 
             /**
-             * Updates the start marker on the map with the latest position.
-             */
+            * Updates the start marker on the map with the latest position.
+            */
             function setStartMarker() {
                 if (!isMapInitialized) return;
 
@@ -188,12 +188,11 @@
                     startMarker.setMap(null);
                 }
 
-                // Changed the image source to a relative path to your local 'duck.png' file.
-                // This will work when the file is run from your local machine with the image in the same directory.
-                const imageSrc = 'duck.png';
-                // Increased the size of the marker icon to make it more prominent.
-                const imageSize = new kakao.maps.Size(60, 60);
-                const imageOption = { offset: new kakao.maps.Point(30, 60) };
+                // Corrected the image source to a placeholder URL since local files
+                // like 'duck.png' cannot be loaded in this environment.
+                const imageSrc = 'https://placehold.co/40x40/FFD700/000000?text=duck';
+                const imageSize = new kakao.maps.Size(40, 40);
+                const imageOption = { offset: new kakao.maps.Point(20, 40) };
                 
                 const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imageOption);
 
@@ -205,9 +204,9 @@
             }
 
             /**
-             * A new function to automatically adjust the map view to fit both the start and destination markers.
-             * This ensures both are always visible, which was the main problem.
-             */
+            * A new function to automatically adjust the map view to fit both the start and destination markers.
+            * This ensures both are always visible, which was the main problem.
+            */
             function updateMapViewToFitMarkers() {
                 if (!isMapInitialized || !startLocation || !destinationLocation) {
                     return;
@@ -220,10 +219,10 @@
             }
 
             /**
-             * Tries to geocode an address using the Kakao REST API.
-             * @param {string} query The address string to geocode.
-             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-             */
+            * Tries to geocode an address using the Kakao REST API.
+            * @param {string} query The address string to geocode.
+            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+            */
             async function tryGeocodeWithKakao(query) {
                 if (!KAKAO_API_KEY) {
                     throw new Error("Kakao REST API key is missing. Geocoding will not work.");
@@ -263,10 +262,10 @@
             }
 
             /**
-             * Tries to geocode an address using the OpenRouteService API.
-             * @param {string} query The address string to geocode.
-             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
-             */
+            * Tries to geocode an address using the OpenRouteService API.
+            * @param {string} query The address string to geocode.
+            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+            */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
                     throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
@@ -303,9 +302,9 @@
             }
 
             /**
-             * Processes the destination from the URL, geocodes it, and sets up the map.
-             * @param {string} destination The destination address from URL.
-             */
+            * Processes the destination from the URL, geocodes it, and sets up the map.
+            * @param {string} destination The destination address from URL.
+            */
             async function processDestination(destination) {
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
@@ -345,12 +344,9 @@
                             destinationMarker.setMap(null);
                         }
                         
-                        // Create a custom overlay for the destination marker with a larger size.
-                        destinationMarker = new kakao.maps.CustomOverlay({
+                        destinationMarker = new kakao.maps.Marker({
                             map: map,
-                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                            content: '<div style="font-size: 60px; transform: translate(-50%, -100%);">📍</div>',
-                            yAnchor: 1
+                            position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1])
                         });
                         
                         const bounds = new kakao.maps.LatLngBounds();
@@ -375,8 +371,8 @@
             }
 
             /**
-             * Starts real-time location tracking and updates the map accordingly.
-             */
+            * Starts real-time location tracking and updates the map accordingly.
+            */
             function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
@@ -420,28 +416,28 @@
             }
 
             /**
-             * Calculates the distance between two geographical coordinates using the Haversine formula.
-             * @param {number[]} coord1 - [latitude, longitude] of the first point.
-             * @param {number[]} coord2 - [latitude, longitude] of the second point.
-             * @returns {number} The distance in meters.
-             */
+            * Calculates the distance between two geographical coordinates using the Haversine formula.
+            * @param {number[]} coord1 - [latitude, longitude] of the first point.
+            * @param {number[]} coord2 - [latitude, longitude] of the second point.
+            * @returns {number} The distance in meters.
+            */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
                 const R = 6371e3;
                 const dLat = toRad(coord2[0] - coord1[0]);
                 const dLng = toRad(coord2[1] - coord1[1]);
                 const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                          Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
-                          Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                            Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
+                            Math.sin(dLng / 2) * Math.sin(dLng / 2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                 return R * c;
             }
 
             /**
-             * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
-             * @param {string} encoded - The encoded polyline string.
-             * @returns {number[][]} The decoded array of coordinates.
-             */
+            * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
+            * @param {string} encoded - The encoded polyline string.
+            * @returns {number[][]} The decoded array of coordinates.
+            */
             function decodePolyline(encoded) {
                 let points = [];
                 let index = 0, len = encoded.length;
@@ -473,8 +469,8 @@
             }
 
             /**
-             * Fetches the route and travel time from the OpenRouteService API.
-             */
+            * Fetches the route and travel time from the OpenRouteService API.
+            */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
@@ -549,8 +545,7 @@
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
                             strokeWeight: 5,
-                            // Changed the line color to green.
-                            strokeColor: '#008000',
+                            strokeColor: '#87CEEB',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
