@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duck Delivery Livestream Widget</title>
+    <!--
+    * Tailwind CSS is loaded from a CDN for simple utility-first styling.
+    -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -16,9 +19,9 @@
 
         .widget-container {
             /*
-             * The background of the entire widget container is now semi-transparent.
+             * The background of the entire widget container is now transparent.
              */
-            background-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0);
             position: fixed;
             top: 20px;
             right: 20px;
@@ -44,6 +47,10 @@
         #map {
             height: 100%;
             width: 100%;
+            /*
+             * The map's opacity is now set to 80%.
+             */
+            opacity: 0.8;
         }
         
         /*
@@ -63,7 +70,7 @@
             left: 50%;
             transform: translateX(-50%);
             max-width: 90%;
-            background-color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(255, 255, 255, 0);
             border-radius: 0.75rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
             z-index: 1001;
@@ -72,6 +79,10 @@
             font-size: 100%;
             font-weight: bold;
             color: #333;
+            /*
+             * The opacity of the timer container is set to 0 to make it invisible.
+             */
+            opacity: 0;
         }
 
         .error-message {
@@ -96,8 +107,8 @@
         }
     </style>
     <!--
-        Kakao JavaScript API key provided by the user.
-        The `libraries=services` part is essential for geocoding.
+    * Kakao JavaScript API key provided by the user.
+    * The `libraries=services` part is essential for geocoding.
     -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
@@ -338,7 +349,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = 'Address not found. �';
                         }
                     }
                 } catch (error) {
@@ -572,3 +583,4 @@
     </script>
 </body>
 </html>
+�
