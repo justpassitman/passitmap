@@ -74,7 +74,8 @@
         }
     </style>
     <!-- Kakao Maps SDK with the 'services' library for geocoding -->
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
+    <!-- The 'onload' parameter ensures `onKakaoMapLoaded` is called after the script is fully loaded. -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false&onload=onKakaoMapLoaded"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -86,15 +87,12 @@
     </div>
     
     <script>
-        // Use an onload callback for the Kakao Maps SDK to ensure 'kakao' is defined.
-        window.onload = function() {
-            // Wait until the SDK is loaded before executing the main logic.
-            kakao.maps.load(() => {
-                init();
-            });
-        };
+        // Global function called by the Kakao Maps SDK when it's finished loading.
+        function onKakaoMapLoaded() {
+            init();
+        }
 
-        // Immediately invoke function expression to keep variables out of the global scope.
+        // Immediately invoked function expression to keep variables out of the global scope.
         (function() {
             // NOTE: Replace with your actual Openrouteservice API key.
             const OPENROUTESERVICE_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
@@ -412,6 +410,7 @@
             function handleError(message) {
                  if (timerContainer) {
                       timerContainer.innerHTML = message;
+                      console.error(message);
                  }
             }
         })();
