@@ -190,7 +190,7 @@
                         displayRouteInfo(routeData);
                     } catch (error) {
                         console.error("Error fetching route:", error);
-                        timerContainer.innerHTML = "🤯 Route API failed. Try again.";
+                        timerContainer.innerHTML = `🤯 Route API failed. Try again.`;
                     }
                 }
             }
@@ -252,7 +252,7 @@
                 const body = new URLSearchParams({
                     origin: `${start.getLng()},${start.getLat()}`,
                     destination: `${end.getLng()},${end.getLat()}`,
-                    car_fuel: 'bicycle' // Corrected from 'bycicle'
+                    car_fuel: 'bicycle'
                 });
 
                 const response = await fetch(url, { method: 'POST', headers: headers, body: body });
@@ -265,6 +265,14 @@
 
             function drawRoute(routeData) {
                 if (polyline) polyline.setMap(null);
+
+                // === THIS IS THE KEY FIX ===
+                // Check if the API returned a valid route before trying to draw it.
+                if (!routeData || !routeData.routes || routeData.routes.length === 0) {
+                    timerContainer.innerHTML = `⚠️ No route found.`;
+                    console.warn("Kakao Mobility API returned no route data.");
+                    return;
+                }
 
                 const lines = routeData.routes[0].sections.flatMap(section => 
                     section.roads.flatMap(road => 
