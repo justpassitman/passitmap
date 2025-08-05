@@ -686,20 +686,18 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
+                    // Always try Kakao first with the full address
                     foundDestination = await tryGeocodeWithKakao(destination);
 
                     if (!foundDestination) {
+                        // If Kakao fails, try ORS with the full address
                         foundDestination = await tryGeocodeWithORS(destination);
-                        if (!foundDestination) {
-                             const addressParts = destination.split(' ');
-                             const simplifiedAddress = addressParts.slice(0, 1).join(' ');
-                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
-                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
-                             }
-                        }
-                        if (!foundDestination) {
-                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
-                        }
+                    }
+                    
+                    if (!foundDestination) {
+                        // As a last resort, try ORS with the full address plus ", Seoul"
+                        // Removed aggressive address chopping for ORS
+                        foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
                     }
 
                     if (foundDestination) {
