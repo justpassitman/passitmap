@@ -186,25 +186,9 @@
             bottom: 50%;
             animation-name: quack-right;
         }
-
+        
         /*
-        * Animation for the gentle balancing effect (for d.png).
-        */
-        @keyframes gentle-balance {
-            0%, 100% {
-                transform: rotate(-3deg);
-            }
-            50% {
-                transform: rotate(3deg);
-            }
-        }
-
-        .destination-marker-gentle {
-            animation: gentle-balance 2s ease-in-out infinite;
-        }
-
-        /*
-        * New animation for the energetic balancing effect (for f.png).
+        * New animation for the energetic balancing effect (for f.gif).
         */
         @keyframes very-fast-balance {
             0%, 100% {
@@ -288,8 +272,7 @@
             let quackDirection = 'left';
 
             const duckImageSrc = 'duck.png';
-            const gentleDestinationImageSrc = 'd.png';
-            // The energetic destination image source has been changed to f.gif.
+            const gentleDestinationImageSrc = 'd.gif';
             const energeticDestinationImageSrc = 'f.gif';
 
             /**
@@ -349,7 +332,7 @@
                 if (destinationContainer) {
                     const currentDistance = calculateDistance(startLocation, destinationLocation);
                     let destinationScale = 0;
-                    // All animated markers (d.png and f.gif) will now be double the size.
+                    // All animated markers (d.gif and f.gif) will now be double the size.
                     if (currentDistance < gentleAnimationDistance) {
                         destinationScale = duckScale * animatedMarkerMultiplier;
                     } else {
@@ -391,9 +374,9 @@
                         </div>
                     `;
                 } else if (state === 'gentle') {
-                    // The d.png marker is now double the size of the duck marker.
+                    // The d.gif marker is now double the size of the duck marker, with no animation
                     destinationScale = duckScale * animatedMarkerMultiplier;
-                    className = 'destination-marker-gentle';
+                    className = '';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
                     // f.gif size is now double the duck size and animated
