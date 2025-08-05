@@ -247,7 +247,7 @@
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
             const gentleAnimationDistance = 700;
-            const veryFastAnimationDistance = 50;
+            const veryFastAnimationDistance = 350;
             const arrivalDistance = 50;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
@@ -272,12 +272,9 @@
             let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
-            let lastKnownDuration = null; 
-
-            // NEW: Variable to track if the destination has been reached
-            let isArrived = false;
-            // REMOVED: Flag to ensure the map locks on the destination and stops all updates
-            // let hasArrivedAndLocked = false;
+            let lastKnownDuration = null; // NEW: Store the last known duration
+            // NEW: Flag to check if the destination has been reached and map view should be locked
+            let hasArrivedAndLocked = false; 
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -480,7 +477,7 @@
             }
 
             /**
-            * MODIFIED: This function now centers the map on the current position *only if* the destination has not been reached.
+            * NEW FUNCTION: Centers the map on the current position.
             */
             function centerMapOnCurrentPosition() {
                 if (!isMapInitialized || !startLocation) {
@@ -634,7 +631,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -653,19 +650,21 @@
                     navigator.geolocation.clearWatch(locationWatchId);
                 }
 
-                let destinationLockActivated = false;
-
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
+                        if (hasArrivedAndLocked) {
+                            return;
+                        }
+
                         const newPosition = [position.coords.latitude, position.coords.longitude];
                         const distance = calculateDistance(newPosition, destinationLocation);
                         
                         startLocation = newPosition;
                         setStartMarker();
-
+                        
                         // NEW: Lock the map's center on the destination if the duck is within the arrival distance.
                         if (distance <= arrivalDistance) {
-                            if (!destinationLockActivated) {
+                            if (!hasArrivedAndLocked) {
                                 // First time the lock is activated, update the UI
                                 const currentLevel = map.getLevel();
                                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
@@ -678,7 +677,7 @@
                                     timerContainer.innerHTML = '✨ Arrived! ✨';
                                 }
                                 stopQuacking();
-                                destinationLockActivated = true;
+                                hasArrivedAndLocked = true;
                             }
                             centerMapOnDestination();
                         } else {
@@ -706,7 +705,7 @@
                     { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             }
-
+            
             /**
             * Stops the duck quacking animation.
             */
@@ -854,4 +853,3 @@
     </script>
 </body>
 </html>
-�
