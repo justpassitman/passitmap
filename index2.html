@@ -246,8 +246,10 @@
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
             const minDistanceForApiCall = 350;
-            const gentleAnimationDistance = 700;
-            const veryFastAnimationDistance = 50;
+            // The gentle animation (d.gif) is now used when the user is within 1500m.
+            const gentleAnimationDistance = 1500;
+            // The very fast animation (f.gif) is now used when the user is within 700m.
+            const veryFastAnimationDistance = 700;
             const arrivalDistance = 50;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
