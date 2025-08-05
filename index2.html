@@ -229,11 +229,11 @@
 
         /* New style for the bolt effect using text */
         .bolt-text {
-            font-size: 20px; /* Adjust for "more large" */
+            font-size: 16px; /* Smaller, adjust as needed */
             font-weight: bold;
-            color: rgba(255, 255, 255, 0.6); /* White and more seethrough */
+            color: rgba(255, 255, 255, 0.8); /* White and more seethrough */
             text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Dark outline */
-            white-space: nowrap; /* Keep ">>>>>" on one line */
+            white-space: nowrap; /* Keep "-" on one line */
             transform-origin: center center; /* Ensure rotation is centered */
         }
     </style>
@@ -301,12 +301,13 @@
             const energeticDestinationImageSrc = 'f.gif';
 
             // Bolt animation variables
-            let animatedBoltOverlay = null; // Changed from animatedBoltPolyline
+            let animatedBoltOverlays = []; // Array to hold CustomOverlay instances for each dash
             let boltAnimationId = null;
-            let boltProgress = 0; // 0 to 1, representing progress along the polyline
-            const BOLT_LENGTH_RATIO = 0.05; // 5% of the polyline length
-            const BOLT_SPEED_PER_FRAME = 0.005; // 0.5% of the polyline length per frame
-            let currentPathForBoltAnimation = []; // This will hold the current remainingPolyline
+            const BOLT_CHARACTER = '-'; // Changed to single hyphen
+            const MAX_BOLTS = 3;
+            const BOLT_SPEED_PER_FRAME = 0.005; // Speed for each dash
+            const BOLT_SPAWN_INTERVAL_MS = 2000; // 2 seconds between each dash appearing
+            let currentPathForBoltAnimation = [];
 
             // =================================================================================================================
             // UI & Animation Functions
@@ -513,87 +514,102 @@
              * Starts the bolt animation along the current path.
              */
             function startBoltAnimation() {
-                if (!animatedBoltOverlay) { // Changed from animatedBoltPolyline
-                    const boltContentDiv = document.createElement('div');
-                    boltContentDiv.className = 'bolt-text';
-                    boltContentDiv.innerText = '>>>>>'; // The ">>>>" text
-                    
-                    animatedBoltOverlay = new kakao.maps.CustomOverlay({
-                        position: new kakao.maps.LatLng(0, 0), // Initial position, will be updated
-                        content: boltContentDiv,
-                        yAnchor: 0.5, // Center vertically
-                        xAnchor: 0.5, // Center horizontally
-                        zIndex: 5 // Ensure it's above the main polyline
-                    });
-                    animatedBoltOverlay.setMap(map);
-                }
+                stopBoltAnimation(); // Clear any existing bolts
 
-                if (boltAnimationId !== null) {
-                    cancelAnimationFrame(boltAnimationId); // Cancel any existing animation
+                // Create and schedule each bolt
+                for (let i = 0; i < MAX_BOLTS; i++) {
+                    setTimeout(() => {
+                        if (!map || currentPathForBoltAnimation.length < 2) return; // Ensure map and path are ready
+
+                        const boltContentDiv = document.createElement('div');
+                        boltContentDiv.className = 'bolt-text';
+                        boltContentDiv.innerText = BOLT_CHARACTER;
+                        
+                        const newBoltOverlay = new kakao.maps.CustomOverlay({
+                            position: new kakao.maps.LatLng(0, 0), // Initial position, will be updated
+                            content: boltContentDiv,
+                            yAnchor: 0.5, // Center vertically
+                            xAnchor: 0.5, // Center horizontally
+                            zIndex: 5 // Ensure it's above the main polyline
+                        });
+                        newBoltOverlay.setMap(map);
+
+                        animatedBoltOverlays.push({
+                            overlay: newBoltOverlay,
+                            progress: 0 // Each bolt starts its own progress from 0
+                        });
+
+                        // If this is the first bolt, start the animation loop
+                        if (animatedBoltOverlays.length === 1) {
+                            boltAnimationId = requestAnimationFrame(animateBoltFrame);
+                        }
+                    }, i * BOLT_SPAWN_INTERVAL_MS);
                 }
-                boltAnimationId = requestAnimationFrame(animateBoltFrame);
             }
 
             /**
              * Animates a segment of the polyline to create a "bolt" effect.
              */
             function animateBoltFrame() {
-                if (currentPathForBoltAnimation.length < 2 || !animatedBoltOverlay) { // Need at least 2 points for a line
+                if (currentPathForBoltAnimation.length < 2 || animatedBoltOverlays.length === 0) {
                     boltAnimationId = requestAnimationFrame(animateBoltFrame);
                     return;
                 }
 
-                boltProgress += BOLT_SPEED_PER_FRAME;
-                if (boltProgress > 1) { // Reset when it reaches the end of the line
-                    boltProgress = 0; // Reappear at the start
-                }
-
-                // Calculate the index on the path based on progress
                 const pathLength = currentPathForBoltAnimation.length;
-                const targetIndex = Math.floor(pathLength * boltProgress);
-                
-                // Get the LatLng for the bolt's position
-                let boltPosition = currentPathForBoltAnimation[targetIndex];
 
-                // Update the overlay's position
-                animatedBoltOverlay.setPosition(boltPosition);
+                animatedBoltOverlays.forEach(bolt => {
+                    bolt.progress += BOLT_SPEED_PER_FRAME;
 
-                // Calculate rotation based on the segment direction
-                let rotation = 0;
-                if (targetIndex < pathLength - 1) {
-                    const nextPoint = currentPathForBoltAnimation[targetIndex + 1];
-                    const dx = nextPoint.getLng() - boltPosition.getLng();
-                    const dy = nextPoint.getLat() - boltPosition.getLat();
-                    rotation = Math.atan2(dy, dx) * 180 / Math.PI; // Angle in degrees
-                } else if (targetIndex > 0) { // If at the very end, use the previous segment
-                    const prevPoint = currentPathForBoltAnimation[targetIndex - 1];
-                    const dx = boltPosition.getLng() - prevPoint.getLng();
-                    const dy = boltPosition.getLat() - prevPoint.getLat();
-                    rotation = Math.atan2(dy, dx) * 180 / Math.PI;
-                }
-                
-                // Apply rotation to the content div
-                const boltContentDiv = animatedBoltOverlay.getContent();
-                if (boltContentDiv) {
-                    boltContentDiv.style.transform = `rotate(${rotation}deg)`;
-                }
+                    // If bolt reaches the end, reset its progress to reappear at the start
+                    if (bolt.progress > 1) {
+                        bolt.progress = 0;
+                    }
+
+                    const targetIndex = Math.floor(pathLength * bolt.progress);
+                    
+                    // Ensure targetIndex is within bounds
+                    const boltPosition = currentPathForBoltAnimation[Math.min(targetIndex, pathLength - 1)];
+
+                    if (boltPosition) {
+                        bolt.overlay.setPosition(boltPosition);
+
+                        // Calculate rotation based on the segment direction
+                        let rotation = 0;
+                        if (targetIndex < pathLength - 1) {
+                            const nextPoint = currentPathForBoltAnimation[targetIndex + 1];
+                            const dx = nextPoint.getLng() - boltPosition.getLng();
+                            const dy = nextPoint.getLat() - boltPosition.getLat();
+                            rotation = Math.atan2(dy, dx) * 180 / Math.PI; // Angle in degrees
+                        } else if (targetIndex > 0) { // If at the very end, use the previous segment
+                            const prevPoint = currentPathForBoltAnimation[targetIndex - 1];
+                            const dx = boltPosition.getLng() - prevPoint.getLng();
+                            const dy = boltPosition.getLat() - prevPoint.getLat();
+                            rotation = Math.atan2(dy, dx) * 180 / Math.PI;
+                        }
+                        
+                        const boltContentDiv = bolt.overlay.getContent();
+                        if (boltContentDiv) {
+                            boltContentDiv.style.transform = `rotate(${rotation}deg)`;
+                        }
+                    }
+                });
 
                 boltAnimationId = requestAnimationFrame(animateBoltFrame);
             }
 
             /**
-             * Stops the bolt animation and removes the bolt polyline.
+             * Stops the bolt animation and removes all bolt overlays.
              */
             function stopBoltAnimation() {
                 if (boltAnimationId) {
                     cancelAnimationFrame(boltAnimationId);
                     boltAnimationId = null;
                 }
-                if (animatedBoltOverlay) { // Changed from animatedBoltPolyline
-                    animatedBoltOverlay.setMap(null);
-                    animatedBoltOverlay = null;
-                }
-                boltProgress = 0;
+                animatedBoltOverlays.forEach(bolt => {
+                    bolt.overlay.setMap(null);
+                });
+                animatedBoltOverlays = []; // Clear the array
                 currentPathForBoltAnimation = [];
             }
 
