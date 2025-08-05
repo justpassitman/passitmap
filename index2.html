@@ -977,7 +977,8 @@
                 // Use the total API duration and the remaining points to calculate time.
                 const remainingProgress = remainingTravelDistance / fullRouteDistance;
                 const remainingDurationInSeconds = fullRouteDuration * remainingProgress;
-                const durationInMinutes = Math.round(remainingDurationInSeconds / 60);
+                // Changed to use Math.ceil() to round up the remaining time.
+                const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
                 if (timerContainer) {
                     timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
