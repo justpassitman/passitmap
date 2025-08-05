@@ -255,7 +255,8 @@
             // Marker animation and sizing thresholds
             const gentleAnimationDistance = 1500;
             const veryFastAnimationDistance = 700;
-            const arrivalDistance = 50;
+            // The arrival distance is now 100 meters (fly distance)
+            const arrivalDistance = 100;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -887,6 +888,41 @@
                 }
                 
                 const currentPosLatLng = new kakao.maps.LatLng(currentPos[0], currentPos[1]);
+                const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+
+                // Calculate the straight-line ("fly") distance to the destination.
+                const flyDistance = calculateDistance(currentPos, destinationLocation);
+
+                // State machine for arrival based on fly distance
+                if (flyDistance < arrivalDistance) {
+                    const duckImageElement = document.getElementById('duck-image');
+                    const currentLevel = map.getLevel();
+                    const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                    
+                    updateDestinationMarkerState('arrived', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'none';
+                    }
+                    if (currentPolyline) {
+                         currentPolyline.setMap(null);
+                         currentPolyline = null;
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    stopQuacking();
+                    startQuacking();
+                    
+                    // Lock the map view on the destination
+                    map.setCenter(destinationLatLng);
+                    map.setLevel(3);
+
+                    return flyDistance;
+                }
                 
                 // Find the closest point on the original polyline to the current user location.
                 let minDistance = Infinity;
@@ -923,26 +959,7 @@
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
                 // State machine for destination marker based on remaining travel distance
-                if (remainingTravelDistance < arrivalDistance) {
-                    updateDestinationMarkerState('arrived', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.add('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'none';
-                    }
-                    if (currentPolyline) {
-                         currentPolyline.setMap(null);
-                         currentPolyline = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    stopQuacking();
-                    startQuacking();
-                    return remainingTravelDistance;
-                } else if (remainingTravelDistance < veryFastAnimationDistance) {
+                if (remainingTravelDistance < veryFastAnimationDistance) {
                     updateDestinationMarkerState('very-fast', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
@@ -1006,9 +1023,7 @@
                 
                 // This block now handles map centering and marker animations
                 if (remainingTravelDistance < centerOnDestinationThreshold) {
-                    const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
-                    map.setCenter(destinationLatLng);
-                    map.setLevel(3);
+                    updateMapViewToFitMarkers();
                 } else {
                     updateMapViewToFitMarkers();
                 }
