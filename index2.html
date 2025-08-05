@@ -33,7 +33,7 @@
         }
 
         .map-container {
-            flex-grow: 1; /* Corrected typo from flex-grow = 1 */
+            flex-grow: 1;
             padding: 0;
             height: 100%;
             border-radius: 0;
@@ -280,6 +280,10 @@
             let quackIntervalId = null;
             let quackDirection = 'left';
             let isMapInitialized = false; // Flag to ensure map is ready
+            let isHighAccuracyMode = false; // Keep this state variable
+            let routeIsFetched = false; // Keep this state variable
+            let fullRouteDuration = 0; // Keep this state variable
+            let fullRouteDistance = 0; // Keep this state variable
 
             // Cached DOM elements for efficiency
             let timerContainerElement = null;
@@ -350,7 +354,6 @@
             
             /**
             * Updates the destination marker's visual state based on distance.
-            * This version now accepts the remaining travel distance as a parameter.
             * @param {string} state - The desired state ('default', 'gentle', 'very-fast', 'arrived').
             * @param {number} duckScale - The current size of the duck marker.
             */
@@ -786,7 +789,7 @@
             }
 
             /**
-             * NEW: Calculates the total distance of a polyline in meters.
+             * Calculates the total distance of a polyline in meters.
              * @param {kakao.maps.LatLng[]} polyline The array of LatLng points.
              * @returns {number} The total distance in meters.
              */
@@ -802,7 +805,7 @@
             }
 
             /**
-            * NEW: Fetches the full route only once and sets up the initial map view.
+            * Fetches the full route only once and sets up the initial map view.
             */
             async function getFullRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
@@ -875,7 +878,7 @@
             }
 
             /**
-            * NEW: Decodes a Google Encoded Polyline string.
+            * Decodes a Google Encoded Polyline string.
             */
             function decodePolyline(encoded) {
                 let points = [];
@@ -908,30 +911,18 @@
             }
 
             /**
-            * NEW: Updates the UI based on the pre-fetched route, "erasing" the line as the user moves.
+            * Updates the UI based on the pre-fetched route, "erasing" the line as the user moves.
             * This function now also returns the remaining travel distance.
             * @param {number[]} currentPos The current latitude and longitude.
             * @returns {number} The remaining travel distance in meters.
             */
             function updateRouteOnMap(currentPos) {
                 if (!map || !fullPolylinePath || !routeIsFetched) {
-                    // If route is not ready, ensure timer reflects that or is empty, not a stale error
-                    if (timerContainerElement && 
-                        (timerContainerElement.innerHTML === '⏳' || 
-                         timerContainerElement.innerHTML.includes('🤯') || 
-                         timerContainerElement.innerHTML.includes('🗺️'))) {
-                         // Do nothing, let the error message from getFullRouteAndTravelTime persist if route is not fetched
-                    }
+                    // If route is not ready, do not attempt to update timer with time.
+                    // The error message from getFullRouteAndTravelTime will persist.
                     return 0; 
                 }
                 
-                // Clear any previous error message if a route is now being displayed
-                if (timerContainerElement && 
-                    (timerContainerElement.innerHTML.includes('🗺️ No route found') || 
-                     timerContainerElement.innerHTML.includes('🤯 Routing data could not be found.'))) {
-                    timerContainerElement.innerHTML = '⏳'; // Reset to loading before updating with actual time
-                }
-
                 const currentPosLatLng = new kakao.maps.LatLng(currentPos[0], currentPos[1]);
                 const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
 
@@ -1005,7 +996,7 @@
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     if (timerContainerElement) { // Use cached element
-                        timerContainerElement.style.display = 'none';
+                        timerContainerElement.style.display = 'none'; // Hide timer on arrival
                     }
                     if (currentPolyline) {
                          currentPolyline.setMap(null);
@@ -1050,7 +1041,7 @@
                     }
                 }
 
-                // NEW: Call the marker size update function with the calculated distance
+                // Call the marker size update function with the calculated distance
                 updateAllMarkerSizes(currentLevel, remainingTravelDistance);
 
                 // Use the total API duration and the remaining points to calculate time.
@@ -1059,13 +1050,9 @@
                 // Changed to use Math.ceil() to round up the remaining time.
                 const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
-                // Robust timer update: display time or "Arrived" if duration is invalid/zero
+                // Display time if route is valid
                 if (timerContainerElement) { 
-                    if (isNaN(durationInMinutes) || !isFinite(durationInMinutes) || remainingTravelDistance <= 0) {
-                        timerContainerElement.innerHTML = '📍 Arrived'; 
-                    } else {
-                        timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
-                    }
+                    timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
                 }
 
                 // Update the duck marker position
