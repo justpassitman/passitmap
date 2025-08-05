@@ -227,7 +227,7 @@
             height: 100%;
         }
     </style>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_API_KEY_HERE&libraries=services&autoload=false"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ca4613b94d75d272b1442c5598696c70&libraries=services&autoload=false"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -243,11 +243,10 @@
             // =================================================================================================================
             // Configuration & State Variables
             // =================================================================================================================
-            const KAKAO_API_KEY = "YOUR_KAKAO_API_KEY_HERE"; // Replace with your Kakao API key.
-            const ORS_API_KEY = "YOUR_ORS_API_KEY_HERE"; // Replace with your ORS API key.
+            const KAKAO_API_KEY = "ca4613b94d75d272b1442c5598696c70"; // Replace with your Kakao API key.
+            const ORS_API_KEY = "5b3ce3597851110001cf6248d21c5f3e580e46a782a2016578a10125"; // Replace with your ORS API key.
             
             // Destination details
-            const destinationAddress = "제주국제공항";
             let destinationLocation = null;
             
             // Marker animation and sizing thresholds
@@ -514,6 +513,15 @@
                     updateAllMarkerSizes(level);
                 });
                 
+                // Get destination from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const destinationAddress = urlParams.get('destination');
+                
+                if (!destinationAddress) {
+                    timerContainer.innerHTML = '⚠️ Please provide a destination in the URL. Example: ?destination=서울역';
+                    return;
+                }
+
                 processDestination(destinationAddress);
             }
             
