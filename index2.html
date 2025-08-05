@@ -226,6 +226,16 @@
             width: 100%;
             height: 100%;
         }
+
+        /* New style for the bolt effect using text */
+        .bolt-text {
+            font-size: 20px; /* Adjust for "more large" */
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.6); /* White and more seethrough */
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Dark outline */
+            white-space: nowrap; /* Keep ">>>>>" on one line */
+            transform-origin: center center; /* Ensure rotation is centered */
+        }
     </style>
     <!-- Updated Kakao Maps JavaScript API Key -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
@@ -291,7 +301,7 @@
             const energeticDestinationImageSrc = 'f.gif';
 
             // Bolt animation variables
-            let animatedBoltPolyline = null;
+            let animatedBoltOverlay = null; // Changed from animatedBoltPolyline
             let boltAnimationId = null;
             let boltProgress = 0; // 0 to 1, representing progress along the polyline
             const BOLT_LENGTH_RATIO = 0.05; // 5% of the polyline length
@@ -503,16 +513,19 @@
              * Starts the bolt animation along the current path.
              */
             function startBoltAnimation() {
-                if (!animatedBoltPolyline) {
-                    animatedBoltPolyline = new kakao.maps.Polyline({
-                        path: [], // Will be set dynamically
-                        strokeWeight: 8, // Thicker for the bolt
-                        strokeColor: '#FFFFFF', // White color
-                        strokeOpacity: 0.6, // More seethrough
-                        strokeStyle: 'dashed', // For a ">>>" approximation
+                if (!animatedBoltOverlay) { // Changed from animatedBoltPolyline
+                    const boltContentDiv = document.createElement('div');
+                    boltContentDiv.className = 'bolt-text';
+                    boltContentDiv.innerText = '>>>>>'; // The ">>>>" text
+                    
+                    animatedBoltOverlay = new kakao.maps.CustomOverlay({
+                        position: new kakao.maps.LatLng(0, 0), // Initial position, will be updated
+                        content: boltContentDiv,
+                        yAnchor: 0.5, // Center vertically
+                        xAnchor: 0.5, // Center horizontally
                         zIndex: 5 // Ensure it's above the main polyline
                     });
-                    animatedBoltPolyline.setMap(map);
+                    animatedBoltOverlay.setMap(map);
                 }
 
                 if (boltAnimationId !== null) {
@@ -525,33 +538,46 @@
              * Animates a segment of the polyline to create a "bolt" effect.
              */
             function animateBoltFrame() {
-                if (currentPathForBoltAnimation.length < 2 || !animatedBoltPolyline) { // Need at least 2 points for a line
+                if (currentPathForBoltAnimation.length < 2 || !animatedBoltOverlay) { // Need at least 2 points for a line
                     boltAnimationId = requestAnimationFrame(animateBoltFrame);
                     return;
                 }
 
                 boltProgress += BOLT_SPEED_PER_FRAME;
-                if (boltProgress > 1 + BOLT_LENGTH_RATIO) { // Allow bolt to completely exit the line before resetting
-                    boltProgress = 0; // Reset to loop the animation
+                if (boltProgress > 1) { // Reset when it reaches the end of the line
+                    boltProgress = 0; // Reappear at the start
                 }
 
+                // Calculate the index on the path based on progress
                 const pathLength = currentPathForBoltAnimation.length;
-                const boltLengthInPoints = Math.max(2, Math.floor(pathLength * BOLT_LENGTH_RATIO));
+                const targetIndex = Math.floor(pathLength * boltProgress);
                 
-                // Calculate start and end points of the bolt based on progress
-                let currentStartIndex = Math.floor(pathLength * boltProgress);
-                let currentEndIndex = currentStartIndex + boltLengthInPoints;
+                // Get the LatLng for the bolt's position
+                let boltPosition = currentPathForBoltAnimation[targetIndex];
 
-                let boltSegment = [];
+                // Update the overlay's position
+                animatedBoltOverlay.setPosition(boltPosition);
 
-                // Only draw the bolt if it's within the path bounds
-                if (currentStartIndex < pathLength) {
-                    // Ensure the end index does not exceed the path length
-                    currentEndIndex = Math.min(currentEndIndex, pathLength);
-                    boltSegment = currentPathForBoltAnimation.slice(currentStartIndex, currentEndIndex);
+                // Calculate rotation based on the segment direction
+                let rotation = 0;
+                if (targetIndex < pathLength - 1) {
+                    const nextPoint = currentPathForBoltAnimation[targetIndex + 1];
+                    const dx = nextPoint.getLng() - boltPosition.getLng();
+                    const dy = nextPoint.getLat() - boltPosition.getLat();
+                    rotation = Math.atan2(dy, dx) * 180 / Math.PI; // Angle in degrees
+                } else if (targetIndex > 0) { // If at the very end, use the previous segment
+                    const prevPoint = currentPathForBoltAnimation[targetIndex - 1];
+                    const dx = boltPosition.getLng() - prevPoint.getLng();
+                    const dy = boltPosition.getLat() - prevPoint.getLat();
+                    rotation = Math.atan2(dy, dx) * 180 / Math.PI;
                 }
                 
-                animatedBoltPolyline.setPath(boltSegment);
+                // Apply rotation to the content div
+                const boltContentDiv = animatedBoltOverlay.getContent();
+                if (boltContentDiv) {
+                    boltContentDiv.style.transform = `rotate(${rotation}deg)`;
+                }
+
                 boltAnimationId = requestAnimationFrame(animateBoltFrame);
             }
 
@@ -563,9 +589,9 @@
                     cancelAnimationFrame(boltAnimationId);
                     boltAnimationId = null;
                 }
-                if (animatedBoltPolyline) {
-                    animatedBoltPolyline.setMap(null);
-                    animatedBoltPolyline = null;
+                if (animatedBoltOverlay) { // Changed from animatedBoltPolyline
+                    animatedBoltOverlay.setMap(null);
+                    animatedBoltOverlay = null;
                 }
                 boltProgress = 0;
                 currentPathForBoltAnimation = [];
