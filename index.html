@@ -296,9 +296,11 @@
             /**
             * A single function to update the size of both markers based on the map's current zoom level.
             * This keeps the sizing logic consistent for both the duck and destination markers.
+            * This version now accepts the remaining travel distance as a parameter.
             * @param {number} level The current zoom level of the map.
+            * @param {number} remainingTravelDistance The actual remaining distance along the route in meters.
             */
-            function updateAllMarkerSizes(level) {
+            function updateAllMarkerSizes(level, remainingTravelDistance) {
                 if (!startOverlay) return;
                 
                 const duckImageElement = document.getElementById('duck-image');
@@ -310,11 +312,11 @@
                 
                 const destinationContainer = document.getElementById('destination-marker-container');
                 if (destinationContainer) {
-                    const currentDistance = calculateDistance(startLocation, destinationLocation);
                     let destinationScale = 0;
-                    if (currentDistance < gentleAnimationDistance) {
+                    // Use the remaining travel distance for animation thresholds
+                    if (remainingTravelDistance < gentleAnimationDistance) {
                         destinationScale = duckScale * gentleMarkerMultiplier;
-                    } else if (currentDistance < veryFastAnimationDistance) {
+                    } else if (remainingTravelDistance < veryFastAnimationDistance) {
                         destinationScale = duckScale * energeticMarkerMultiplier;
                     } else {
                         destinationScale = duckScale * destinationSizeMultiplier;
@@ -326,6 +328,7 @@
             
             /**
             * Updates the destination marker's visual state based on distance.
+            * This version now accepts the remaining travel distance as a parameter.
             * @param {string} state - The desired state ('default', 'gentle', 'very-fast', 'arrived').
             * @param {number} duckScale - The current size of the duck marker.
             */
@@ -514,7 +517,9 @@
 
                 kakao.maps.event.addListener(map, 'zoom_changed', function() {
                     const level = map.getLevel();
-                    updateAllMarkerSizes(level);
+                    // NEW: We need to update the marker sizes with the current remaining distance.
+                    // This will be handled in `updateRouteOnMap` for consistency.
+                    // So we don't call updateAllMarkerSizes here.
                 });
                 
                 // Get destination from URL
@@ -723,33 +728,9 @@
                         
                         startLocation = newPosition;
                         setStartMarker();
-
-                        const distanceToDestination = calculateDistance(newPosition, destinationLocation);
                         
-                        // State machine to switch between location polling modes
-                        if (distanceToDestination < HIGH_ACCURACY_THRESHOLD_METERS && !isHighAccuracyMode) {
-                            console.log("Entering high-accuracy mode.");
-                            isHighAccuracyMode = true;
-                            startLocationPolling();
-                            return;
-                        } else if (distanceToDestination >= HIGH_ACCURACY_THRESHOLD_METERS && isHighAccuracyMode) {
-                            console.log("Exiting high-accuracy mode.");
-                            isHighAccuracyMode = false;
-                            startLocationPolling();
-                            return;
-                        }
-                        
-                        // NEW LOGIC: Updates the UI and "erases" the polyline.
+                        // Pass the new position to a single update function
                         updateRouteOnMap(newPosition);
-                        
-                        // This block now handles map centering and marker animations
-                        if (distanceToDestination < centerOnDestinationThreshold) {
-                            const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
-                            map.setCenter(destinationLatLng);
-                            map.setLevel(3);
-                        } else {
-                            updateMapViewToFitMarkers();
-                        }
                     },
                     (error) => {
                         console.error("Real-time geolocation error:", error);
@@ -780,6 +761,22 @@
                             Math.sin(dLng / 2) * Math.sin(dLng / 2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                 return R * c;
+            }
+
+            /**
+             * NEW: Calculates the total distance of a polyline in meters.
+             * @param {kakao.maps.LatLng[]} polyline The array of LatLng points.
+             * @returns {number} The total distance in meters.
+             */
+            function calculateRemainingTravelDistance(polyline) {
+                let distance = 0;
+                for (let i = 0; i < polyline.length - 1; i++) {
+                    distance += calculateDistance(
+                        [polyline[i].getLat(), polyline[i].getLng()],
+                        [polyline[i+1].getLat(), polyline[i+1].getLng()]
+                    );
+                }
+                return distance;
             }
 
             /**
@@ -880,68 +877,17 @@
 
             /**
             * NEW: Updates the UI based on the pre-fetched route, "erasing" the line as the user moves.
+            * This function now also returns the remaining travel distance.
+            * @param {number[]} currentPos The current latitude and longitude.
+            * @returns {number} The remaining travel distance in meters.
             */
             function updateRouteOnMap(currentPos) {
                 if (!map || !fullPolylinePath || !routeIsFetched) {
-                    return;
+                    return 0; // Return 0 if the route isn't ready
                 }
                 
                 const currentPosLatLng = new kakao.maps.LatLng(currentPos[0], currentPos[1]);
-                const distanceToDestination = calculateDistance(currentPos, destinationLocation);
-
-                const duckImageElement = document.getElementById('duck-image');
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
-                // State machine for destination marker based on distance
-                if (distanceToDestination < arrivalDistance) {
-                    updateDestinationMarkerState('arrived', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.add('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'none';
-                    }
-                    if (currentPolyline) {
-                         currentPolyline.setMap(null);
-                         currentPolyline = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    stopQuacking();
-                    startQuacking();
-                    return;
-                } else if (distanceToDestination < veryFastAnimationDistance) {
-                    updateDestinationMarkerState('very-fast', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
-                    }
-                    stopQuacking();
-                } else if (distanceToDestination < gentleAnimationDistance) {
-                    updateDestinationMarkerState('gentle', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
-                    }
-                    stopQuacking();
-                } else {
-                    updateDestinationMarkerState('default', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
-                    }
-                    stopQuacking();
-                }
-
                 // Find the closest point on the original polyline to the current user location.
                 let minDistance = Infinity;
                 let closestPointIndex = -1;
@@ -968,17 +914,71 @@
                     });
                     currentPolyline.setMap(map);
                 }
-
-                // NEW: Use the total API duration and the remaining points to calculate time.
-                const totalPoints = fullPolylinePath.length;
-                const remainingPoints = fullPolylinePath.length - closestPointIndex;
-
-                let durationInMinutes = 0;
-                if (totalPoints > 0) {
-                    const progress = remainingPoints / totalPoints;
-                    const remainingDurationInSeconds = fullRouteDuration * progress;
-                    durationInMinutes = Math.round(remainingDurationInSeconds / 60);
+                
+                // Calculate the remaining travel distance by summing the segments
+                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
+                
+                const duckImageElement = document.getElementById('duck-image');
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                
+                // State machine for destination marker based on remaining travel distance
+                if (remainingTravelDistance < arrivalDistance) {
+                    updateDestinationMarkerState('arrived', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'none';
+                    }
+                    if (currentPolyline) {
+                         currentPolyline.setMap(null);
+                         currentPolyline = null;
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    stopQuacking();
+                    startQuacking();
+                    return remainingTravelDistance;
+                } else if (remainingTravelDistance < veryFastAnimationDistance) {
+                    updateDestinationMarkerState('very-fast', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block';
+                    }
+                    stopQuacking();
+                } else if (remainingTravelDistance < gentleAnimationDistance) {
+                    updateDestinationMarkerState('gentle', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block';
+                    }
+                    stopQuacking();
+                } else {
+                    updateDestinationMarkerState('default', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block';
+                    }
+                    stopQuacking();
                 }
+
+                // NEW: Call the marker size update function with the calculated distance
+                updateAllMarkerSizes(currentLevel, remainingTravelDistance);
+
+                // Use the total API duration and the remaining points to calculate time.
+                const remainingProgress = remainingTravelDistance / fullRouteDistance;
+                const remainingDurationInSeconds = fullRouteDuration * remainingProgress;
+                // Changed to use Math.ceil() to round up the remaining time.
+                const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
                 if (timerContainer) {
                     timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
@@ -990,6 +990,30 @@
                 } else {
                     setStartMarker();
                 }
+                
+                // State machine to switch between location polling modes
+                if (remainingTravelDistance < HIGH_ACCURACY_THRESHOLD_METERS && !isHighAccuracyMode) {
+                    console.log("Entering high-accuracy mode.");
+                    isHighAccuracyMode = true;
+                    startLocationPolling();
+                    return remainingTravelDistance;
+                } else if (remainingTravelDistance >= HIGH_ACCURACY_THRESHOLD_METERS && isHighAccuracyMode) {
+                    console.log("Exiting high-accuracy mode.");
+                    isHighAccuracyMode = false;
+                    startLocationPolling();
+                    return remainingTravelDistance;
+                }
+                
+                // This block now handles map centering and marker animations
+                if (remainingTravelDistance < centerOnDestinationThreshold) {
+                    const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                    map.setCenter(destinationLatLng);
+                    map.setLevel(3);
+                } else {
+                    updateMapViewToFitMarkers();
+                }
+                
+                return remainingTravelDistance;
             }
 
 
