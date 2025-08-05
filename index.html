@@ -268,11 +268,12 @@
             const HIGH_ACCURACY_THRESHOLD_METERS = 500;
             const QUACK_ACTIVATION_DISTANCE = 350; // New constant for quack trigger
             const OFF_ROUTE_THRESHOLD_METERS = 75; // Threshold for re-routing if user deviates
+            const MIN_MOVEMENT_THRESHOLD_METERS = 5; // Minimum distance moved to trigger map/route update
 
             // Internal state variables
             let map = null;
             let startLocation = null;
-            let lastKnownPosition = null;
+            let lastKnownPosition = null; // To store the last position that triggered an update
             let startOverlay = null; 
             let destinationOverlay = null;
             let currentPolyline = null; // The polyline that represents the remaining path
@@ -732,17 +733,30 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
-                    // Always try Kakao first with the full address
-                    foundDestination = await tryGeocodeWithKakao(destination);
-
-                    if (!foundDestination) {
-                        // If Kakao fails, try ORS with the full address
-                        foundDestination = await tryGeocodeWithORS(destination);
-                    }
                     
-                    if (!foundDestination) {
-                        // As a last resort, try ORS with the full address plus ", Seoul"
-                        foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                    // Try to retrieve from sessionStorage first
+                    const cachedDestination = sessionStorage.getItem(`destination_${destination}`);
+                    if (cachedDestination) {
+                        console.log("Using cached destination.");
+                        foundDestination = JSON.parse(cachedDestination);
+                    } else {
+                        // Always try Kakao first with the full address
+                        foundDestination = await tryGeocodeWithKakao(destination);
+
+                        if (!foundDestination) {
+                            // If Kakao fails, try ORS with the full address
+                            foundDestination = await tryGeocodeWithORS(destination);
+                        }
+                        
+                        if (!foundDestination) {
+                            // As a last resort, try ORS with the full address plus ", Seoul"
+                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                        }
+
+                        // Cache the result if found
+                        if (foundDestination) {
+                            sessionStorage.setItem(`destination_${destination}`, JSON.stringify(foundDestination));
+                        }
                     }
 
                     if (foundDestination) {
@@ -793,9 +807,16 @@
                 // Throttle the updateRouteOnMap call
                 const throttledUpdateRoute = throttle((position) => {
                     const newPosition = [position.coords.latitude, position.coords.longitude];
-                    startLocation = newPosition;
-                    setStartMarker();
-                    updateRouteOnMap(newPosition);
+
+                    // Filter Redundant Updates: Only update if moved significantly or it's the first update
+                    if (!lastKnownPosition || calculateDistance(lastKnownPosition, newPosition) > MIN_MOVEMENT_THRESHOLD_METERS) {
+                        lastKnownPosition = newPosition; // Update last known position
+                        startLocation = newPosition;
+                        setStartMarker();
+                        updateRouteOnMap(newPosition);
+                    } else {
+                        console.log(`Skipping update: moved less than ${MIN_MOVEMENT_THRESHOLD_METERS} meters.`);
+                    }
                 }, 500); // Throttle to once every 500ms
 
                 locationWatchId = navigator.geolocation.watchPosition(
