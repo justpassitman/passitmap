@@ -290,6 +290,14 @@
             const gentleDestinationImageSrc = 'd.gif';
             const energeticDestinationImageSrc = 'f.gif';
 
+            // Bolt animation variables
+            let animatedBoltPolyline = null;
+            let boltAnimationId = null;
+            let boltProgress = 0; // 0 to 1, representing progress along the polyline
+            const BOLT_LENGTH_RATIO = 0.05; // 5% of the polyline length
+            const BOLT_SPEED_PER_FRAME = 0.005; // 0.5% of the polyline length per frame
+            let currentPathForBoltAnimation = []; // This will hold the current remainingPolyline
+
             // =================================================================================================================
             // UI & Animation Functions
             // =================================================================================================================
@@ -486,6 +494,85 @@
                     }
                 }
             }
+
+            // =================================================================================================================
+            // Bolt Animation Functions
+            // =================================================================================================================
+
+            /**
+             * Starts the bolt animation along the current path.
+             */
+            function startBoltAnimation() {
+                if (!animatedBoltPolyline) {
+                    animatedBoltPolyline = new kakao.maps.Polyline({
+                        path: [], // Will be set dynamically
+                        strokeWeight: 6, // Thicker for the bolt
+                        strokeColor: '#FFFFFF', // White color
+                        strokeOpacity: 1,
+                        strokeStyle: 'solid',
+                        zIndex: 5 // Ensure it's above the main polyline
+                    });
+                    animatedBoltPolyline.setMap(map);
+                }
+
+                if (boltAnimationId !== null) {
+                    cancelAnimationFrame(boltAnimationId); // Cancel any existing animation
+                }
+                boltAnimationId = requestAnimationFrame(animateBoltFrame);
+            }
+
+            /**
+             * Animates a segment of the polyline to create a "bolt" effect.
+             */
+            function animateBoltFrame() {
+                if (currentPathForBoltAnimation.length === 0 || !animatedBoltPolyline) {
+                    boltAnimationId = requestAnimationFrame(animateBoltFrame);
+                    return;
+                }
+
+                boltProgress += BOLT_SPEED_PER_FRAME;
+                if (boltProgress > 1) {
+                    boltProgress = 0; // Reset to loop the animation
+                }
+
+                const pathLength = currentPathForBoltAnimation.length;
+                const boltLength = Math.max(2, Math.floor(pathLength * BOLT_LENGTH_RATIO)); // Ensure at least 2 points
+                
+                const startPointIndex = Math.floor(pathLength * boltProgress);
+                let endPointIndex = startPointIndex + boltLength;
+
+                let boltSegment;
+
+                // Handle wrap-around for the bolt segment
+                if (endPointIndex <= pathLength) {
+                    boltSegment = currentPathForBoltAnimation.slice(startPointIndex, endPointIndex);
+                } else {
+                    // Bolt wraps around, create two segments
+                    const firstPart = currentPathForBoltAnimation.slice(startPointIndex, pathLength);
+                    const secondPart = currentPathForBoltAnimation.slice(0, endPointIndex - pathLength);
+                    boltSegment = firstPart.concat(secondPart);
+                }
+                
+                animatedBoltPolyline.setPath(boltSegment);
+                boltAnimationId = requestAnimationFrame(animateBoltFrame);
+            }
+
+            /**
+             * Stops the bolt animation and removes the bolt polyline.
+             */
+            function stopBoltAnimation() {
+                if (boltAnimationId) {
+                    cancelAnimationFrame(boltAnimationId);
+                    boltAnimationId = null;
+                }
+                if (animatedBoltPolyline) {
+                    animatedBoltPolyline.setMap(null);
+                    animatedBoltPolyline = null;
+                }
+                boltProgress = 0;
+                currentPathForBoltAnimation = [];
+            }
+
 
             // =================================================================================================================
             // Map and Routing Logic
@@ -829,6 +916,7 @@
                         
                         // Initial update with the full route
                         updateRouteOnMap(startLocation);
+                        startBoltAnimation(); // Start the bolt animation
 
                     } else {
                         if (timerContainer) {
@@ -915,6 +1003,7 @@
                         locationWatchId = null;
                     }
                     stopQuacking();
+                    stopBoltAnimation(); // Stop the bolt animation on arrival
                     startQuacking();
                     
                     // Lock the map view on the destination
@@ -938,6 +1027,8 @@
                 
                 // Shorten the polyline to represent the remaining path.
                 const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
+                currentPathForBoltAnimation = remainingPolyline; // Update the path for the bolt animation
+
                 if (currentPolyline) {
                     currentPolyline.setPath(remainingPolyline);
                 } else {
