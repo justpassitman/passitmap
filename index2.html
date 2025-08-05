@@ -659,8 +659,8 @@
                             const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
                             map.setCenter(destinationLatLng);
                             // Set a high zoom level to ensure a close view (level 1-2 is usually very close).
-                            // A level of 1 provides a horizontal span of approximately 200 meters.
-                            map.setLevel(1);
+                            // A level of 2 provides a horizontal span of approximately 400 meters.
+                            map.setLevel(2);
                         } else {
                             updateMapViewToFitMarkers();
                         }
