@@ -289,7 +289,8 @@
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.png';
-            const energeticDestinationImageSrc = 'f.png';
+            // The energetic destination image source has been changed to f.gif.
+            const energeticDestinationImageSrc = 'f.gif';
 
             /**
             * Initializes the map and fetches the destination from URL parameters.
@@ -348,7 +349,7 @@
                 if (destinationContainer) {
                     const currentDistance = calculateDistance(startLocation, destinationLocation);
                     let destinationScale = 0;
-                    // All animated markers (d.png and f.png) will now be double the size.
+                    // All animated markers (d.png and f.gif) will now be double the size.
                     if (currentDistance < gentleAnimationDistance) {
                         destinationScale = duckScale * animatedMarkerMultiplier;
                     } else {
@@ -395,12 +396,12 @@
                     className = 'destination-marker-gentle';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
-                    // f.png size is now double the duck size and animated
+                    // f.gif size is now double the duck size and animated
                     destinationScale = duckScale * animatedMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 } else if (state === 'arrived') {
-                    // The f.png marker is now double the size of the duck and has the very-fast animation
+                    // The f.gif marker is now double the size of the duck and has the very-fast animation
                     destinationScale = duckScale * animatedMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
