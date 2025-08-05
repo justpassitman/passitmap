@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -655,12 +654,17 @@
                         startLocation = newPosition;
                         setStartMarker();
 
-                        // MODIFIED: Check distance to destination to decide map behavior
+                        // MODIFIED START: The following block has been changed to center on the destination with a close zoom.
                         if (distance < veryFastAnimationDistance) {
-                             centerMapOnCurrentPosition();
+                            const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                            map.setCenter(destinationLatLng);
+                            // Set a high zoom level to ensure a close view (level 1-2 is usually very close).
+                            // A level of 2 provides a horizontal span of approximately 400 meters.
+                            map.setLevel(2);
                         } else {
-                             updateMapViewToFitMarkers();
+                            updateMapViewToFitMarkers();
                         }
+                        // MODIFIED END
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
