@@ -255,8 +255,8 @@
             // Marker animation and sizing thresholds
             const gentleAnimationDistance = 1500;
             const veryFastAnimationDistance = 700;
-            // The arrival distance is now 350 meters (fly distance)
-            const arrivalDistance = 350; // Changed from 200 to 350
+            // The arrival distance is now 100 meters (fly distance) - Reverted to original
+            const arrivalDistance = 100; 
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -893,7 +893,7 @@
                 const flyDistance = calculateDistance(currentPos, destinationLocation);
 
                 // State machine for arrival based on fly distance
-                if (flyDistance < arrivalDistance) {
+                if (flyDistance < arrivalDistance) { // arrivalDistance is now 100m
                     const duckImageElement = document.getElementById('duck-image');
                     const currentLevel = map.getLevel();
                     const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
@@ -958,8 +958,9 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
-                // State machine for destination marker based on remaining travel distance
-                if (remainingTravelDistance < veryFastAnimationDistance) {
+                // State machine for destination marker based on remaining travel distance AND fly distance
+                // NEW: f.gif when flyDistance is below 350m
+                if (flyDistance < 350) { 
                     updateDestinationMarkerState('very-fast', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
@@ -968,7 +969,16 @@
                         timerContainer.style.display = 'block';
                     }
                     stopQuacking();
-                } else if (remainingTravelDistance < gentleAnimationDistance) {
+                } else if (remainingTravelDistance < veryFastAnimationDistance) { // Original f.gif condition (travel distance < 700)
+                    updateDestinationMarkerState('very-fast', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block';
+                    }
+                    stopQuacking();
+                } else if (remainingTravelDistance < gentleAnimationDistance) { // d.gif condition (travel distance < 1500)
                     updateDestinationMarkerState('gentle', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
@@ -977,7 +987,7 @@
                         timerContainer.style.display = 'block';
                     }
                     stopQuacking();
-                } else {
+                } else { // Default state
                     updateDestinationMarkerState('default', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck');
