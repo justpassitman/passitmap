@@ -273,6 +273,8 @@
             let quackIntervalId = null;
             let quackDirection = 'left';
             let lastKnownDuration = null; // NEW: Store the last known duration
+            // NEW: Flag to check if the destination has been reached and map view should be locked
+            let hasArrivedAndLocked = false; 
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -486,6 +488,17 @@
             }
 
             /**
+             * NEW FUNCTION: Centers the map on the destination position and locks the view.
+             */
+            function centerMapOnDestination() {
+                if (!isMapInitialized || !destinationLocation) {
+                    return;
+                }
+                const destinationPosition = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                map.setCenter(destinationPosition);
+            }
+
+            /**
             * Tries to geocode an address using the Kakao REST API.
             * @param {string} query The address string to geocode.
             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
@@ -639,316 +652,170 @@
 
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
-                        const newPosition = [position.coords.latitude, position.coords.longitude];
-
-                        if (!lastKnownPosition) {
-                            lastKnownPosition = newPosition;
+                        if (hasArrivedAndLocked) {
+                            return;
                         }
 
-                        // MODIFIED: distance to destination
+                        const newPosition = [position.coords.latitude, position.coords.longitude];
                         const distance = calculateDistance(newPosition, destinationLocation);
                         
-                        // NEW: Determine API call threshold based on distance
-                        const apiCallThreshold = distance < 1000 ? 50 : minDistanceForApiCall;
-
                         startLocation = newPosition;
                         setStartMarker();
-
-                        // MODIFIED: Check distance to destination to decide map behavior
-                        if (distance < veryFastAnimationDistance) {
-                             centerMapOnCurrentPosition();
+                        
+                        // NEW: Lock the map's center on the destination if the duck is within the arrival distance.
+                        if (distance <= arrivalDistance) {
+                            if (!hasArrivedAndLocked) {
+                                // First time the lock is activated, update the UI
+                                const currentLevel = map.getLevel();
+                                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                                updateDestinationMarkerState('arrived', duckScale);
+                                if (routePolyline) {
+                                    routePolyline.setMap(null);
+                                    routePolyline = null;
+                                }
+                                if (timerContainer) {
+                                    timerContainer.innerHTML = '✨ Arrived! ✨';
+                                }
+                                stopQuacking();
+                                hasArrivedAndLocked = true;
+                            }
+                            centerMapOnDestination();
                         } else {
-                             updateMapViewToFitMarkers();
-                        }
-
-                        if (lastApiCallPosition) {
-                            const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
-
-                            // MODIFIED: Use the new dynamic threshold
-                            if (distanceSinceLastCall > apiCallThreshold) {
-                                lastApiCallPosition = newPosition;
-                                getRouteAndTravelTime();
+                            // Before the destination lock, continue to update the map view.
+                            if (distance < veryFastAnimationDistance) {
+                                centerMapOnCurrentPosition();
+                            } else {
+                                updateMapViewToFitMarkers();
                             }
                         }
                         
-                        lastKnownPosition = newPosition;
-                        
-                        // NEW: Update timer with the last known duration to prevent it from resetting
-                        if (lastKnownDuration !== null && timerContainer) {
-                             const remainingMinutes = Math.round(lastKnownDuration / 60);
-                             timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        // Continue to update the route polyline and travel time
+                        const distanceSinceLastCall = calculateDistance(newPosition, lastApiCallPosition);
+                        if (distanceSinceLastCall > minDistanceForApiCall) {
+                            lastApiCallPosition = newPosition;
+                            getRouteAndTravelTime();
                         }
                     },
                     (error) => {
-                        console.error("Real-time geolocation error:", error);
-                        if (locationWatchId) {
-                            navigator.geolocation.clearWatch(locationWatchId);
+                        console.error("Geolocation Error:", error);
+                        if (timerContainer) {
+                            timerContainer.innerHTML = `GPS error: ${error.message}`;
                         }
                     },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
+            }
+            
+            /**
+            * Stops the duck quacking animation.
+            */
+            function stopQuacking() {
+                if (quackIntervalId) {
+                    clearInterval(quackIntervalId);
+                    quackIntervalId = null;
+                    const quackElement = document.querySelector('.quack-text');
+                    if (quackElement) {
+                        quackElement.remove();
+                    }
+                }
             }
 
             /**
-            * Calculates the distance between two geographical coordinates using the Haversine formula.
-            * @param {number[]} coord1 - [latitude, longitude] of the first point.
-            * @param {number[]} coord2 - [latitude, longitude] of the second point.
+            * Starts the duck quacking animation.
+            */
+            function startQuacking() {
+                if (quackIntervalId) {
+                    clearInterval(quackIntervalId);
+                }
+                
+                quackIntervalId = setInterval(() => {
+                    const mapContainer = document.querySelector('.map-container');
+                    if (!mapContainer) return;
+                    
+                    const existingQuack = document.querySelector('.quack-text');
+                    if (existingQuack) {
+                        existingQuack.remove();
+                    }
+                    
+                    const quackElement = document.createElement('div');
+                    quackElement.innerText = 'QUACK!';
+                    quackElement.className = `quack-text ${quackDirection === 'left' ? 'quack-left' : 'quack-right'}`;
+                    mapContainer.appendChild(quackElement);
+                    quackDirection = quackDirection === 'left' ? 'right' : 'left';
+                }, 2000);
+            }
+            
+            /**
+            * Haversine formula to calculate distance between two lat/lng points in meters.
+            * @param {Array<number>} coord1 - [latitude, longitude] of the first point.
+            * @param {Array<number>} coord2 - [latitude, longitude] of the second point.
             * @returns {number} The distance in meters.
             */
             function calculateDistance(coord1, coord2) {
+                if (!coord1 || !coord2) {
+                    return Infinity;
+                }
                 const toRad = (x) => x * Math.PI / 180;
-                const R = 6371e3;
-                const dLat = toRad(coord2[0] - coord1[0]);
-                const dLng = toRad(coord2[1] - coord1[1]);
-                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                            Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
-                            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                const R = 6371e3; // Earth's radius in meters
+                const lat1 = toRad(coord1[0]);
+                const lat2 = toRad(coord2[0]);
+                const deltaLat = toRad(coord2[0] - coord1[0]);
+                const deltaLng = toRad(coord2[1] - coord1[1]);
+                const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                          Math.cos(lat1) * Math.cos(lat2) *
+                          Math.sin(deltaLng / 2) * Math.sin(deltaLng / 2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                 return R * c;
             }
 
             /**
-            * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
-            * @param {string} encoded - The encoded polyline string.
-            * @returns {number[][]} The decoded array of coordinates.
-            */
-            function decodePolyline(encoded) {
-                let points = [];
-                let index = 0, len = encoded.length;
-                let lat = 0, lng = 0;
-
-                while (index < len) {
-                    let b, shift = 0, result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lat += dlat;
-
-                    shift = 0;
-                    result = 0;
-                    do {
-                        b = encoded.charCodeAt(index++) - 63;
-                        result |= (b & 0x1f) << shift;
-                        shift += 5;
-                    } while (b >= 0x20);
-                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
-                    lng += dlng;
-
-                    points.push([lat / 1e5, lng / 1e5]);
-                }
-                return points;
-            }
-
-            /**
-             * Creates and animates a "quack!" text element with multiple colors.
-             */
-            function createQuack() {
-                const duckContainer = document.getElementById('duck-marker-container');
-                if (!duckContainer) return;
-
-                const quack = document.createElement('div');
-                // An array of colors to be used for the multicolored text
-                const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
-                const text = "quack !";
-                let colorIndex = 0;
-                let content = '';
-                // Create a span for each character with a distinct color
-                for (const char of text) {
-                    content += `<span style="color: ${colors[colorIndex % colors.length]}">${char}</span>`;
-                    colorIndex++;
-                }
-                quack.innerHTML = content;
-                quack.classList.add('quack-text');
-
-                // Alternate between left and right quacks, now in opposite directions.
-                if (quackDirection === 'left') {
-                    quack.classList.add('quack-right');
-                    quackDirection = 'right';
-                } else {
-                    quack.classList.add('quack-left');
-                    quackDirection = 'left';
-                }
-
-                duckContainer.appendChild(quack);
-
-                // Remove the quack element after 0.5 second (matching the animation duration)
-                setTimeout(() => {
-                    quack.remove();
-                }, 500);
-            }
-
-            /**
-             * Starts the quack animation interval.
-             */
-            function startQuacking() {
-                if (quackIntervalId) return; // Don't start if already running
-                quackIntervalId = setInterval(createQuack, 500);
-            }
-
-            /**
-             * Stops the quack animation interval and removes any existing quack elements.
-             */
-            function stopQuacking() {
-                if (quackIntervalId) {
-                    clearInterval(quackIntervalId);
-                    quackIntervalId = null;
-                    const duckContainer = document.getElementById('duck-marker-container');
-                    if (duckContainer) {
-                        const quacks = duckContainer.querySelectorAll('.quack-text');
-                        quacks.forEach(q => q.remove());
-                    }
-                }
-            }
-
-
-            /**
-            * Fetches the route and travel time from the OpenRouteService API.
+            * Fetches routing data and travel time from OpenRouteService.
             */
             async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
+                    if (timerContainer) {
+                        timerContainer.innerHTML = "Destination not set.";
+                    }
                     return;
                 }
                 
-                const distance = calculateDistance(startLocation, destinationLocation);
-                const duckImageElement = document.getElementById('duck-image');
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                
-                // State machine for destination marker based on distance
-                if (distance < arrivalDistance) {
-                    // State 1: Arrived at destination
-                    updateDestinationMarkerState('arrived', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.add('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'none'; // Hide the box when the "🥳" message would have appeared
-                    }
-                    if (routePolyline) {
-                         routePolyline.setMap(null);
-                         routePolyline = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    startQuacking();
-                    return;
-                } else if (distance < veryFastAnimationDistance) {
-                    // State 2: Very close to destination (energetic animation)
-                    updateDestinationMarkerState('very-fast', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block'; // Ensure the box is visible
-                        // Keep displaying the last known duration while a new one is calculated
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
-                    }
-                    stopQuacking();
-                } else if (distance < gentleAnimationDistance) {
-                    // State 3: Close to destination (gentle animation)
-                    updateDestinationMarkerState('gentle', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block'; // Ensure the box is visible
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
-                    }
-                    stopQuacking();
-                } else {
-                    // State 4: Far from destination (default marker)
-                    updateDestinationMarkerState('default', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block'; // Ensure the box is visible
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
-                    }
-                    stopQuacking();
-                }
-
-                if (!ORS_API_KEY) {
-                    console.error("OpenRouteService API key is missing.");
-                    if (timerContainer) {
-                        timerContainer.innerHTML = "ERROR: OpenRouteService API key is missing. Please add your key.";
-                    }
-                    return;
-                }
-
-                const orsCoords = [
-                    [startLocation[1], startLocation[0]],
-                    [destinationLocation[1], destinationLocation[0]]
-                ];
-
                 try {
-                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
-                    const payload = { coordinates: orsCoords };
-
-                    const response = await fetch(directionsUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': ORS_API_KEY
-                        },
-                        body: JSON.stringify(payload)
-                    });
+                    // This line has been updated to use 'mountain-bike' for the travel profile.
+                    const orsUrl = `https://api.openrouteservice.org/v2/directions/mountain-bike?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
+                    const response = await fetch(orsUrl);
 
                     if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({}));
-                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
-                        if (response.status === 403) {
-                             throw new Error("OpenRouteService API key is invalid.");
-                        }
-                        throw new Error(`An error occurred: ${errorMessage}.`);
+                         if (response.status === 403) {
+                             throw new Error("Invalid ORS API key.");
+                         }
+                         throw new Error(`ORS routing failed with status: ${response.status}`);
                     }
 
                     const data = await response.json();
-
-                    if (data && data.routes && data.routes.length > 0) {
+                    
+                    if (data.routes && data.routes.length > 0) {
                         const route = data.routes[0];
-                        const encodedGeometry = route.geometry;
-                        const durationInSeconds = route.summary.duration;
-                        lastKnownDuration = durationInSeconds; // NEW: Store the last known duration
-
-                        const routeCoordinates = decodePolyline(encodedGeometry);
-                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-
+                        const coordinates = route.segments[0].steps.reduce((acc, step) => {
+                            acc.push(...step.way_points.map(idx => route.geometry.coordinates[idx]));
+                            return acc;
+                        }, []);
+                        
+                        const path = coordinates.map(coord => new kakao.maps.LatLng(coord[1], coord[0]));
+                        
                         if (routePolyline) {
                             routePolyline.setMap(null);
                         }
-
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 4, // Updated stroke weight for a thinner line
-                            strokeColor: '#00B050',
+                            strokeWeight: 4,
+                            strokeColor: '#333333',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
-
                         routePolyline.setMap(map);
-
-                        const durationInMinutes = Math.round(durationInSeconds / 60);
+                        
+                        const durationInSeconds = route.summary.duration;
+                        const durationInMinutes = Math.round(durationInSeconds / 60) + 2;
 
                         if (timerContainer) {
                             timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
