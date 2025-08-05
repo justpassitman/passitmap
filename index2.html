@@ -33,7 +33,7 @@
         }
 
         .map-container {
-            flex-grow: 1;
+            flex-grow = 1;
             padding: 0;
             height: 100%;
             border-radius: 0;
@@ -895,24 +895,29 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
-                // --- Absolute Rule for Duck Bounce and Quack at < 350m fly distance ---
+                // --- Absolute Rule for Duck Bounce and Quack ---
                 // This logic will apply unless the actual arrival state (flyDistance < arrivalDistance) takes over.
-                if (flyDistance < QUACK_ACTIVATION_DISTANCE && flyDistance >= arrivalDistance) {
+                // Activate if flyDistance < 350m OR remainingTravelDistance < 700m AND NOT in final arrival state
+                const shouldActivateQuackAndBounce = 
+                    (flyDistance < QUACK_ACTIVATION_DISTANCE || remainingTravelDistance < veryFastAnimationDistance) && 
+                    flyDistance >= arrivalDistance;
+
+                if (shouldActivateQuackAndBounce) {
                     // Activate bounce
-                    if (duckImageElement && !duckImageElement.classList.contains('wiggle-duck')) {
+                    if (duckImageElement) { 
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     // Activate quack
-                    if (!quackIntervalId) { // Check if quacking is NOT already running
+                    if (!quackIntervalId) { 
                         startQuacking();
                     }
                 } else {
                     // Deactivate bounce
-                    if (duckImageElement && duckImageElement.classList.contains('wiggle-duck')) {
+                    if (duckImageElement) { 
                         duckImageElement.classList.remove('wiggle-duck');
                     }
-                    // Deactivate quack (unless in arrival state, which handles its own quacking)
-                    if (quackIntervalId && flyDistance >= QUACK_ACTIVATION_DISTANCE) { // Only stop if outside 350m range
+                    // Deactivate quack
+                    if (quackIntervalId) { 
                         stopQuacking();
                     }
                 }
@@ -921,7 +926,7 @@
                 if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
                     updateDestinationMarkerState('arrived', duckScale);
                     // Ensure duck is wiggling on arrival
-                    if (duckImageElement && !duckImageElement.classList.contains('wiggle-duck')) {
+                    if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
                     }
                     if (timerContainer) {
@@ -936,7 +941,7 @@
                         locationWatchId = null;
                     }
                     // Quack for arrival - this should override any other quacking state
-                    if (!quackIntervalId) { // Ensure it starts if not already
+                    if (!quackIntervalId) { 
                         startQuacking();
                     }
                     
