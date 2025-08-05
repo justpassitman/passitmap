@@ -81,6 +81,10 @@
             * The text color is now set to 80% opacity.
             */
             color: rgba(51, 51, 51, 0.8);
+            /*
+            * The opacity has been changed to 50%.
+            */
+            opacity: 0.5;
         }
 
         .error-message {
@@ -160,7 +164,8 @@
             font-size: 20px;
             font-weight: 900;
             white-space: nowrap;
-            animation-duration: 1s;
+            /* The animation duration is now 0.5s for double speed */
+            animation-duration: 0.5s;
             animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
             animation-fill-mode: forwards;
             z-index: 3;
@@ -740,21 +745,21 @@
                 quack.innerHTML = content;
                 quack.classList.add('quack-text');
 
-                // Alternate between left and right quacks
+                // Alternate between left and right quacks, now in opposite directions.
                 if (quackDirection === 'left') {
-                    quack.classList.add('quack-left');
+                    quack.classList.add('quack-right');
                     quackDirection = 'right';
                 } else {
-                    quack.classList.add('quack-right');
+                    quack.classList.add('quack-left');
                     quackDirection = 'left';
                 }
 
                 duckContainer.appendChild(quack);
 
-                // Remove the quack element after 1 second (matching the animation duration)
+                // Remove the quack element after 0.5 second (matching the animation duration)
                 setTimeout(() => {
                     quack.remove();
-                }, 1000);
+                }, 500);
             }
 
             /**
