@@ -267,6 +267,7 @@
             const centerOnDestinationThreshold = 150;
             const HIGH_ACCURACY_THRESHOLD_METERS = 500;
             const QUACK_ACTIVATION_DISTANCE = 350; // New constant for quack trigger
+            const OFF_ROUTE_THRESHOLD_METERS = 75; // Threshold for re-routing if user deviates
 
             // Internal state variables
             let map = null;
@@ -316,6 +317,37 @@
                         inThrottle = true;
                         setTimeout(() => inThrottle = false, limit);
                     }
+                }
+            }
+
+            /**
+             * Retries a fetch request with exponential backoff.
+             * @param {string} url The URL to fetch.
+             * @param {object} options The fetch options.
+             * @param {number} retries The number of retries remaining.
+             * @param {number} delay The current delay before retrying.
+             * @returns {Promise<Response>} The fetch response.
+             */
+            async function retryFetch(url, options, retries = 3, delay = 1000) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        if (response.status === 429 || response.status >= 500 && retries > 0) {
+                            console.warn(`Retrying ${url} in ${delay}ms...`);
+                            await new Promise(res => setTimeout(res, delay));
+                            return retryFetch(url, options, retries - 1, delay * 2);
+                        }
+                        // For non-retryable errors or after retries exhausted, throw the response
+                        throw response; 
+                    }
+                    return response;
+                } catch (error) {
+                    if (retries > 0) {
+                        console.warn(`Retrying ${url} in ${delay}ms due to network error...`);
+                        await new Promise(res => setTimeout(res, delay));
+                        return retryFetch(url, options, retries - 1, delay * 2);
+                    }
+                    throw error; // Re-throw if no retries left or not a network error
                 }
             }
 
@@ -597,7 +629,8 @@
 
                 const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
                 try {
-                    const kakaoResponse = await fetch(kakaoGeocodeUrl, {
+                    // Use retryFetch for Kakao API calls
+                    const kakaoResponse = await retryFetch(kakaoGeocodeUrl, {
                         method: 'GET',
                         headers: {
                             'Authorization': `KakaoAK ${KAKAO_API_KEY}`
@@ -605,11 +638,15 @@
                     });
 
                     if (!kakaoResponse.ok) {
-                        console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
-                        if (kakaoResponse.status === 401 || kakaoResponse.status === 403) {
-                            throw new Error("🔑 Kakao API key invalid.");
+                        // More specific error handling for Kakao
+                        const errorData = await kakaoResponse.json().catch(() => ({}));
+                        let errorMessage = `Kakao Geocoding failed: Status ${kakaoResponse.status}`;
+                        if (errorData.code === -401) { // Example Kakao specific error code for invalid key
+                            errorMessage = "🔑 Kakao API key invalid or rate limit exceeded.";
+                        } else if (errorData.message) {
+                            errorMessage = `Kakao Geocoding error: ${errorData.message}`;
                         }
-                        return null;
+                        throw new Error(errorMessage);
                     }
 
                     const kakaoData = await kakaoResponse.json();
@@ -640,14 +677,18 @@
                 
                 try {
                     const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
-                    const geocodeResponse = await fetch(geocodeUrl);
+                    // Use retryFetch for ORS API calls
+                    const geocodeResponse = await retryFetch(geocodeUrl);
 
                     if (!geocodeResponse.ok) {
+                        const errorData = await geocodeResponse.json().catch(() => ({}));
+                        let errorMessage = `ORS Geocoding failed: Status ${geocodeResponse.status}`;
                         if (geocodeResponse.status === 403) {
-                            console.error("ORS Geocoding failed: Invalid API key.");
-                            throw new Error("🔑 ORS API key invalid.");
+                            errorMessage = "🔑 ORS API key invalid.";
+                        } else if (errorData.error && errorData.error.message) {
+                            errorMessage = `ORS Geocoding error: ${errorData.error.message}`;
                         }
-                        return null;
+                        throw new Error(errorMessage);
                     }
 
                     const geocodeData = await geocodeResponse.json();
@@ -673,6 +714,11 @@
             * @param {string} destination The destination address from URL.
             */
             async function processDestination(destination) {
+                // Show loading state for geocoding
+                if (timerContainerElement) {
+                    timerContainerElement.innerHTML = 'Finding destination... 🔍';
+                }
+
                 const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
@@ -696,7 +742,6 @@
                     
                     if (!foundDestination) {
                         // As a last resort, try ORS with the full address plus ", Seoul"
-                        // Removed aggressive address chopping for ORS
                         foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
                     }
 
@@ -718,13 +763,13 @@
                         startLocationPolling();
                     } else {
                         if (timerContainerElement) { // Use cached element
-                            timerContainerElement.innerHTML = '🤯 address not found';
+                            timerContainerElement.innerHTML = '🤯 Address not found. Please try a different one.';
                         }
                     }
                 } catch (error) {
                     console.error("Error:", error);
                     if (timerContainerElement) { // Use cached element
-                        timerContainerElement.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
+                        timerContainerElement.innerHTML = error.message; // Display specific error message
                     }
                 }
             }
@@ -760,8 +805,20 @@
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
                         }
+                        let errorMessage = "😵 GPS out";
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = "🚫 GPS access denied. Please enable location services.";
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = "📡 GPS signal unavailable. Trying to reconnect...";
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = "⏰ GPS timeout. Check your signal.";
+                                break;
+                        }
                         if (timerContainerElement) { // Use cached element
-                            timerContainerElement.innerHTML = "😵 GPS out";
+                            timerContainerElement.innerHTML = errorMessage;
                         }
                     },
                     watchOptions
@@ -810,6 +867,11 @@
                     return;
                 }
                 
+                // Show loading state for routing
+                if (timerContainerElement) {
+                    timerContainerElement.innerHTML = 'Calculating cycling route... 🚴';
+                }
+
                 try {
                     const orsCoords = [
                         [startLocation[1], startLocation[0]],
@@ -819,7 +881,8 @@
                     const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
                     const payload = { coordinates: orsCoords };
 
-                    const response = await fetch(directionsUrl, {
+                    // Use retryFetch for ORS directions API calls
+                    const response = await retryFetch(directionsUrl, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -869,7 +932,7 @@
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainerElement) {
-                        timerContainerElement.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
+                        timerContainerElement.innerHTML = error.message; // Display specific error message
                     }
                     routeIsFetched = false; // Ensure flag is false on exception
                 }
@@ -942,6 +1005,15 @@
                     }
                 }
                 
+                // Dynamic Route Recalculation: If user is significantly off route
+                if (minDistance > OFF_ROUTE_THRESHOLD_METERS && routeIsFetched) {
+                    console.warn("User is significantly off route. Recalculating cycling route...");
+                    // Set routeIsFetched to false temporarily to prevent multiple recalculations
+                    routeIsFetched = false; 
+                    getFullRouteAndTravelTime(); // This will re-fetch the route from current location
+                    return remainingTravelDistance; // Exit current update, new route will trigger next update
+                }
+
                 // Shorten the polyline to represent the remaining path.
                 const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
                 if (currentPolyline) {
