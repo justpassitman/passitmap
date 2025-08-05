@@ -255,6 +255,8 @@
             const gentleAnimationDistance = 1500;
             // The very fast animation (f.gif) is now used when the user is within 700m.
             const veryFastAnimationDistance = 700;
+            // NEW: The super fast animation is triggered at 350m.
+            const superFastAnimationDistance = 350;
             const arrivalDistance = 50;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
@@ -706,13 +708,17 @@
                             }
                         }
 
-                        // MODIFIED START: The following block has been changed to center on the destination with a close zoom.
-                        if (distanceToDestination < veryFastAnimationDistance) {
+                        // MODIFIED START: The following block now handles multiple zoom levels based on distance.
+                        if (distanceToDestination < superFastAnimationDistance) {
                             const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
                             map.setCenter(destinationLatLng);
-                            // Set a high zoom level to ensure a close view (level 1-2 is usually very close).
-                            // A level of 2 provides a horizontal span of approximately 400 meters.
-                            map.setLevel(2);
+                            // This level provides an edge-to-edge view of approximately 700 meters.
+                            map.setLevel(3);
+                        } else if (distanceToDestination < veryFastAnimationDistance) {
+                            const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                            map.setCenter(destinationLatLng);
+                            // This level provides an edge-to-edge view of approximately 1200 meters.
+                            map.setLevel(4);
                         } else {
                             updateMapViewToFitMarkers();
                         }
