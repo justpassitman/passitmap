@@ -829,10 +829,17 @@
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
+                        let errorMessage = "🗺️ No route found";
                         if (response.status === 403) {
-                             throw new Error("🔑 ORS API key invalid.");
+                            errorMessage = "🔑 ORS API key invalid.";
+                        } else if (errorData.error && errorData.error.message) {
+                            errorMessage = `🗺️ Route error: ${errorData.error.message}`;
                         }
-                        throw new Error(`An error occurred.`);
+                        if (timerContainerElement) {
+                            timerContainerElement.innerHTML = errorMessage;
+                        }
+                        routeIsFetched = false; // Ensure flag is false on failure
+                        return; // Exit on error
                     }
 
                     const data = await response.json();
@@ -841,26 +848,29 @@
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
                         
-                        fullRouteDuration = route.summary.duration; // Store the total duration from the API
-                        fullRouteDistance = route.summary.distance; // Store the total distance from the API
+                        // Ensure distance is not zero to prevent division by zero later
+                        fullRouteDistance = route.summary.distance > 0 ? route.summary.distance : 1; 
+                        fullRouteDuration = route.summary.duration; 
                         
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         fullPolylinePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-                        routeIsFetched = true;
+                        routeIsFetched = true; // Set to true only on successful route fetch
                         
                         // Initial update with the full route
                         updateRouteOnMap(startLocation);
 
                     } else {
-                        if (timerContainerElement) { // Use cached element
+                        if (timerContainerElement) {
                             timerContainerElement.innerHTML = "🤯 Routing data could not be found.";
                         }
+                        routeIsFetched = false; // Ensure flag is false if no routes found
                     }
                 } catch (error) {
                     console.error("Routing Error:", error);
-                    if (timerContainerElement) { // Use cached element
+                    if (timerContainerElement) {
                         timerContainerElement.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
+                    routeIsFetched = false; // Ensure flag is false on exception
                 }
             }
 
@@ -905,9 +915,23 @@
             */
             function updateRouteOnMap(currentPos) {
                 if (!map || !fullPolylinePath || !routeIsFetched) {
-                    return 0; // Return 0 if the route isn't ready
+                    // If route is not ready, ensure timer reflects that or is empty, not a stale error
+                    if (timerContainerElement && 
+                        (timerContainerElement.innerHTML === '⏳' || 
+                         timerContainerElement.innerHTML.includes('🤯') || 
+                         timerContainerElement.innerHTML.includes('🗺️'))) {
+                         // Do nothing, let the error message from getFullRouteAndTravelTime persist if route is not fetched
+                    }
+                    return 0; 
                 }
                 
+                // Clear any previous error message if a route is now being displayed
+                if (timerContainerElement && 
+                    (timerContainerElement.innerHTML.includes('🗺️ No route found') || 
+                     timerContainerElement.innerHTML.includes('🤯 Routing data could not be found.'))) {
+                    timerContainerElement.innerHTML = '⏳'; // Reset to loading before updating with actual time
+                }
+
                 const currentPosLatLng = new kakao.maps.LatLng(currentPos[0], currentPos[1]);
                 const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
 
