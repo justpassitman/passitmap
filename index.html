@@ -474,6 +474,17 @@
             }
 
             /**
+            * NEW FUNCTION: Centers the map on the current position.
+            */
+            function centerMapOnCurrentPosition() {
+                if (!isMapInitialized || !startLocation) {
+                    return;
+                }
+                const currentPosition = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
+                map.setCenter(currentPosition);
+            }
+
+            /**
             * Tries to geocode an address using the Kakao REST API.
             * @param {string} query The address string to geocode.
             * @returns {Promise<object|null>} A Promise that resolves with location data or null.
@@ -638,7 +649,13 @@
                         startLocation = newPosition;
                         setStartMarker();
 
-                        updateMapViewToFitMarkers();
+                        // MODIFIED: Check distance to destination to decide map behavior
+                        const distance = calculateDistance(startLocation, destinationLocation);
+                        if (distance < veryFastAnimationDistance) {
+                             centerMapOnCurrentPosition(); // NEW: Center map on current position
+                        } else {
+                             updateMapViewToFitMarkers(); // Old behavior: Fit both markers in the view
+                        }
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
