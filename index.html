@@ -717,8 +717,8 @@
                         } else if (distanceToDestination < veryFastAnimationDistance) {
                             const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
                             map.setCenter(destinationLatLng);
-                            // This level provides an edge-to-edge view of approximately 1200 meters.
-                            map.setLevel(4);
+                            // This level provides an edge-to-edge view of approximately 2000 meters.
+                            map.setLevel(5);
                         } else {
                             updateMapViewToFitMarkers();
                         }
