@@ -227,7 +227,8 @@
             height: 100%;
         }
     </style>
-    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ca4613b94d75d272b1442c5598696c70&libraries=services&autoload=false"></script>
+    <!-- Updated Kakao Maps JavaScript API Key -->
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
 </head>
 <body class="bg-gray-100">
 
@@ -243,8 +244,10 @@
             // =================================================================================================================
             // Configuration & State Variables
             // =================================================================================================================
-            const KAKAO_API_KEY = "ca4613b94d75d272b1442c5598696c70"; // Replace with your Kakao API key.
-            const ORS_API_KEY = "5b3ce3597851110001cf6248d21c5f3e580e46a782a2016578a10125"; // Replace with your ORS API key.
+            // Updated Kakao REST API Key
+            const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63"; 
+            // Updated OpenRouteService API Key
+            const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0="; 
             
             // Destination details
             let destinationLocation = null;
@@ -518,7 +521,7 @@
                 const destinationAddress = urlParams.get('destination');
                 
                 if (!destinationAddress) {
-                    timerContainer.innerHTML = '⚠️ Please provide a destination in the URL. Example: ?destination=서울역';
+                    timerContainer.innerHTML = '⚠️ Please provide a destination, you know how ⚠️';
                     return;
                 }
 
