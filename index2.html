@@ -902,7 +902,7 @@
                 ];
 
                 try {
-                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-mountain`;
                     const payload = { coordinates: orsCoords };
 
                     const response = await fetch(directionsUrl, {
@@ -928,7 +928,7 @@
                     if (data && data.routes && data.routes.length > 0) {
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
-                        const durationInSeconds = route.summary.duration;
+                        const durationInSeconds = route.summary.duration + 120; // ADDED: + 120 seconds for the two minutes
                         lastKnownDuration = durationInSeconds; // NEW: Store the last known duration
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
