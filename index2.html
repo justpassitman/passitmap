@@ -130,26 +130,6 @@
             animation: wiggle-duck 0.5s ease-in-out infinite;
         }
 
-        /* NEW: Final bouncing animation for the duck */
-        @keyframes final-bounce-duck {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            25% {
-                transform: translateY(-5px);
-            }
-            50% {
-                transform: translateY(0);
-            }
-            75% {
-                transform: translateY(-3px);
-            }
-        }
-
-        .final-bounce-duck {
-            animation: final-bounce-duck 0.8s ease-out infinite;
-        }
-
         /*
         * The quack-left keyframes now animate from a centered position
         */
@@ -228,10 +208,10 @@
         */
         @keyframes color-pulse {
             0%, 100% {
-                fill: hsl(210, 100%, 75%);
+                fill: hsl(120, 100%, 25%); /* Dark Green */
             }
             50% {
-                fill: hsl(210, 100%, 45%);
+                fill: hsl(120, 100%, 50%); /* Light Green */
             }
         }
 
@@ -275,11 +255,8 @@
             // Marker animation and sizing thresholds
             const gentleAnimationDistance = 1500;
             const veryFastAnimationDistance = 700;
-            // The arrival distance is now 100 meters (fly distance)
-            const arrivalDistance = 100;
-            // NEW: Distance threshold for the final bouncing animation (fly distance)
-            const finalBounceDistance = 350;
-
+            // The arrival distance is now 100 meters (fly distance) - Reverted to original
+            const arrivalDistance = 100; 
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -289,6 +266,7 @@
             // Map view and routing logic thresholds
             const centerOnDestinationThreshold = 150;
             const HIGH_ACCURACY_THRESHOLD_METERS = 500;
+            const QUACK_ACTIVATION_DISTANCE = 350; // New constant for quack trigger
 
             // Internal state variables
             let map = null;
@@ -303,10 +281,7 @@
             let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
-            let isHighAccuracyMode = false;
-            let routeIsFetched = false;
-            let fullRouteDuration = 0; // NEW: Store total duration from API
-            let fullRouteDistance = 0; // NEW: Store total distance from API
+            let isQuackingActive = false; // New state variable for quacking animation
 
             // Image assets - Using the local files as requested.
             const duckImageSrc = 'duck.png';
@@ -725,7 +700,7 @@
                 } catch (error) {
                     console.error("Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🤯 address not found";
+                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
@@ -852,7 +827,6 @@
                         
                         // Initial update with the full route
                         updateRouteOnMap(startLocation);
-
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "🤯 Routing data could not be found.";
@@ -916,39 +890,6 @@
                 // Calculate the straight-line ("fly") distance to the destination.
                 const flyDistance = calculateDistance(currentPos, destinationLocation);
 
-                const duckImageElement = document.getElementById('duck-image');
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-
-                // State machine for arrival based on fly distance
-                if (flyDistance < arrivalDistance) {
-                    updateDestinationMarkerState('arrived', duckScale);
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                        duckImageElement.classList.remove('final-bounce-duck'); // Ensure this is removed
-                        duckImageElement.classList.add('wiggle-duck'); // Keep the wiggle for final arrival
-                    }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'none';
-                    }
-                    if (currentPolyline) {
-                         currentPolyline.setMap(null);
-                         currentPolyline = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    stopQuacking();
-                    startQuacking();
-                    
-                    // Lock the map view on the destination
-                    map.setCenter(destinationLatLng);
-                    map.setLevel(3);
-
-                    return flyDistance;
-                }
-                
                 // Find the closest point on the original polyline to the current user location.
                 let minDistance = Infinity;
                 let closestPointIndex = -1;
@@ -963,6 +904,51 @@
                 
                 // Shorten the polyline to represent the remaining path.
                 const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
+                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
+                
+                const duckImageElement = document.getElementById('duck-image');
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+
+                // 1. Handle actual arrival (flyDistance < 100m)
+                if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
+                    updateDestinationMarkerState('arrived', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'none';
+                    }
+                    if (currentPolyline) {
+                         currentPolyline.setMap(null);
+                         currentPolyline = null;
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    stopQuacking(); // Stop any ongoing quacking before starting arrival quack
+                    startQuacking(); // Quack for arrival
+                    isQuackingActive = true; // Ensure it's marked active for arrival
+                    
+                    // Lock the map view on the destination
+                    map.setCenter(destinationLatLng);
+                    map.setLevel(3);
+
+                    return flyDistance;
+                }
+                
+                // 2. Handle quacking based on flyDistance < 350m (if not arrived)
+                // This check is independent and only affects the quacking animation.
+                if (flyDistance < QUACK_ACTIVATION_DISTANCE && !isQuackingActive) {
+                    startQuacking();
+                    isQuackingActive = true;
+                } else if (flyDistance >= QUACK_ACTIVATION_DISTANCE && isQuackingActive) {
+                    stopQuacking();
+                    isQuackingActive = false;
+                }
+
+                // 3. Update polyline on map
                 if (currentPolyline) {
                     currentPolyline.setPath(remainingPolyline);
                 } else {
@@ -976,44 +962,42 @@
                     currentPolyline.setMap(map);
                 }
                 
-                // Calculate the remaining travel distance by summing the segments
-                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
-                
-                // NEW: Logic for the final bouncing animation
-                if (flyDistance < finalBounceDistance) {
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck'); // Stop normal wiggle
-                        duckImageElement.classList.add('final-bounce-duck'); // Start final bounce
-                    }
-                } else {
-                    if (duckImageElement) {
-                        duckImageElement.classList.remove('final-bounce-duck'); // Remove final bounce
-                        duckImageElement.classList.add('wiggle-duck'); // Resume normal wiggle
-                    }
-                }
-
-                // State machine for destination marker based on remaining travel distance
-                if (remainingTravelDistance < veryFastAnimationDistance) {
+                // 4. Update destination marker state (d.gif/f.gif) based on remaining travel distance AND fly distance
+                if (flyDistance < 350) { // f.gif when flyDistance is below 350m
                     updateDestinationMarkerState('very-fast', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
                     if (timerContainer) {
                         timerContainer.style.display = 'block';
                     }
-                    stopQuacking();
-                } else if (remainingTravelDistance < gentleAnimationDistance) {
+                } else if (remainingTravelDistance < veryFastAnimationDistance) { // Original f.gif condition (travel distance < 700)
+                    updateDestinationMarkerState('very-fast', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block';
+                    }
+                } else if (remainingTravelDistance < gentleAnimationDistance) { // d.gif condition (travel distance < 1500)
                     updateDestinationMarkerState('gentle', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
                     if (timerContainer) {
                         timerContainer.style.display = 'block';
                     }
-                    stopQuacking();
-                } else {
+                } else { // Default state
                     updateDestinationMarkerState('default', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
                     if (timerContainer) {
                         timerContainer.style.display = 'block';
                     }
-                    stopQuacking();
                 }
 
-                // NEW: Call the marker size update function with the calculated distance
+                // Call the marker size update function with the calculated distance
                 updateAllMarkerSizes(currentLevel, remainingTravelDistance);
 
                 // Use the total API duration and the remaining points to calculate time.
