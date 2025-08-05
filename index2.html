@@ -647,7 +647,7 @@
             * @param {string} destination The destination address from URL.
             */
             async function processDestination(destination) {
-                const getUserLocation = () => new Promise((resolve, reject) => {
+                const getUserLocation = () => new new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
                     } else {
@@ -660,19 +660,29 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
-                    foundDestination = await tryGeocodeWithKakao(destination);
+                    try {
+                        foundDestination = await tryGeocodeWithKakao(destination);
+                    } catch (e) {
+                        console.error("Kakao Geocoding attempt failed:", e);
+                        // Continue to ORS even if Kakao fails
+                    }
 
                     if (!foundDestination) {
-                        foundDestination = await tryGeocodeWithORS(destination);
-                        if (!foundDestination) {
-                             const addressParts = destination.split(' ');
-                             const simplifiedAddress = addressParts.slice(0, 1).join(' ');
-                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
-                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
-                             }
-                        }
-                        if (!foundDestination) {
-                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                        try {
+                            foundDestination = await tryGeocodeWithORS(destination);
+                            if (!foundDestination) {
+                                const addressParts = destination.split(' ');
+                                const simplifiedAddress = addressParts.slice(0, 1).join(' ');
+                                if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                                    foundDestination = await tryGeocodeWithORS(simplifiedAddress);
+                                }
+                            }
+                            if (!foundDestination) {
+                                foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                            }
+                        } catch (e) {
+                            console.error("ORS Geocoding attempt failed:", e);
+                            // Continue if possible, but if no destination found, it will go to the final else
                         }
                     }
 
@@ -687,20 +697,24 @@
                         
                         updateMapViewToFitMarkers();
 
-                        // NEW: Make a single API call for the full route when the destination is found.
-                        getFullRouteAndTravelTime();
+                        getFullRouteAndTravelTime(); // This function handles its own errors now
                         
-                        // Start the location tracking
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = '🤯 address not found';
+                            timerContainer.innerHTML = '🤯 Destination address not found.';
                         }
                     }
                 } catch (error) {
-                    console.error("Error:", error);
+                    console.error("Error during initial setup or geolocation:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
+                        if (error.message.includes("key")) {
+                            timerContainer.innerHTML = `🔑 API key error: ${error.message}`;
+                        } else if (error.message.includes("GPS")) {
+                            timerContainer.innerHTML = "😵 GPS not available or permission denied.";
+                        } else {
+                            timerContainer.innerHTML = "⚠️ An unknown error occurred during setup.";
+                        }
                     }
                 }
             }
@@ -783,6 +797,10 @@
             */
             async function getFullRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
+                    console.error("Start or destination location not set for routing.");
+                    if (timerContainer) {
+                        timerContainer.innerHTML = "🗺️ Route needs start/end points.";
+                    }
                     return;
                 }
                 
@@ -816,51 +834,61 @@
                                 const route = data.routes[0];
                                 const encodedGeometry = route.geometry;
                                 
-                                fullRouteDuration = route.summary.duration; // Store the total duration from the API
-                                fullRouteDistance = route.summary.distance; // Store the total distance from the API
+                                fullRouteDuration = route.summary.duration;
+                                fullRouteDistance = route.summary.distance;
                                 
                                 const routeCoordinates = decodePolyline(encodedGeometry);
                                 fullPolylinePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
                                 routeIsFetched = true;
                                 
-                                // Initial update with the full route
                                 updateRouteOnMap(startLocation);
-                                return; // Exit function on success
+                                return; // Success, exit function
                             } else {
-                                console.warn("ORS API returned no routes for the given coordinates.");
+                                console.warn("ORS API returned no routes for the given coordinates (empty routes array).");
                                 if (timerContainer) {
-                                    timerContainer.innerHTML = "🤯 Routing data could not be found.";
+                                    timerContainer.innerHTML = "🤯 No route found for these points."; // More specific
                                 }
-                                return; // Exit function, as it's not a retryable error
+                                return; // Not a retryable error (API responded, but no route)
                             }
                         } else {
-                            const errorData = await response.json().catch(() => ({}));
-                            console.error(`ORS API failed with status: ${response.status}, error: ${JSON.stringify(errorData)}`);
+                            // Handle HTTP errors
                             if (response.status === 403) {
-                                throw new Error("🔑 ORS API key invalid."); // Not retryable, invalid key
+                                console.error("ORS API failed: Invalid API key (403 Forbidden).");
+                                if (timerContainer) {
+                                    timerContainer.innerHTML = "🔑 ORS API key invalid.";
+                                }
+                                return; // Not retryable
+                            } else if (response.status === 404) {
+                                console.error("ORS API failed: Route not found (404 Not Found).");
+                                if (timerContainer) {
+                                    timerContainer.innerHTML = "🗺️ Route not found (404).";
+                                }
+                                return; // Not retryable (likely unroutable points)
+                            } else {
+                                // Other HTTP errors, might be transient
+                                console.warn(`ORS API failed with status: ${response.status}. Retrying... (${retries + 1}/${MAX_RETRIES})`);
+                                retries++;
+                                await new Promise(res => setTimeout(res, delay));
+                                delay *= 2; // Exponential backoff
                             }
-                            // For other non-OK statuses, retry
-                            console.log(`Retrying... (${retries + 1}/${MAX_RETRIES})`);
-                            retries++;
-                            await new Promise(res => setTimeout(res, delay));
-                            delay *= 2; // Exponential backoff
                         }
                     } catch (error) {
-                        if (error.message.includes("key")) {
-                            throw error; // Re-throw if it's an API key error, not retryable
-                        }
+                        // Catch network errors or other unexpected errors
                         console.error("Network or unexpected error during routing fetch:", error);
-                        console.log(`Retrying... (${retries + 1}/${MAX_RETRIES})`);
                         retries++;
-                        await new Promise(res => setTimeout(res, delay));
-                        delay *= 2; // Exponential backoff
+                        if (retries < MAX_RETRIES) {
+                            console.log(`Retrying... (${retries}/${MAX_RETRIES})`);
+                            await new Promise(res => setTimeout(res, delay));
+                            delay *= 2; // Exponential backoff
+                        } else {
+                            console.error("Failed to fetch route after multiple retries.");
+                            if (timerContainer) {
+                                timerContainer.innerHTML = "🗺️ Route calculation failed after multiple attempts.";
+                            }
+                            return; // Exhausted retries
+                        }
                     }
                 }
-                // If loop finishes without success
-                if (timerContainer) {
-                    timerContainer.innerHTML = "🗺️ No route found after multiple attempts.";
-                }
-                throw new Error("Failed to fetch route after multiple retries."); // Indicate ultimate failure
             }
 
             /**
