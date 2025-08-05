@@ -780,7 +780,7 @@
                 }
                 
                 try {
-                    const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
+                    const orsUrl = `https://api.openrouteservice.org/v2/directions/mountain-bike?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
                     const response = await fetch(orsUrl);
 
                     if (!response.ok) {
