@@ -253,8 +253,10 @@
             const baseMarkerSize = 20;
             // The destination marker size will be at most 80% of the duck's size for the default state.
             const destinationSizeMultiplier = 0.8;
-            // The multiplier for animated markers.
-            const animatedMarkerMultiplier = 2;
+            // The multiplier for the gentle animation (d.gif) is now 1.6 to make it 20% smaller than the duck's size * 2.
+            const gentleMarkerMultiplier = 1.6;
+            // The multiplier for the energetic animation (f.gif) is unchanged.
+            const energeticMarkerMultiplier = 2;
 
 
             let map = null;
@@ -332,9 +334,12 @@
                 if (destinationContainer) {
                     const currentDistance = calculateDistance(startLocation, destinationLocation);
                     let destinationScale = 0;
-                    // All animated markers (d.gif and f.gif) will now be double the size.
                     if (currentDistance < gentleAnimationDistance) {
-                        destinationScale = duckScale * animatedMarkerMultiplier;
+                        // Use the gentle multiplier for the d.gif state
+                        destinationScale = duckScale * gentleMarkerMultiplier;
+                    } else if (currentDistance < veryFastAnimationDistance) {
+                        // Use the energetic multiplier for the f.gif state
+                        destinationScale = duckScale * energeticMarkerMultiplier;
                     } else {
                         destinationScale = duckScale * destinationSizeMultiplier;
                     }
@@ -374,18 +379,18 @@
                         </div>
                     `;
                 } else if (state === 'gentle') {
-                    // The d.gif marker is now double the size of the duck marker, with no animation
-                    destinationScale = duckScale * animatedMarkerMultiplier;
+                    // The d.gif marker is now 160% the size of the duck marker, with no animation
+                    destinationScale = duckScale * gentleMarkerMultiplier;
                     className = '';
                     imgSrc = gentleDestinationImageSrc;
                 } else if (state === 'very-fast') {
-                    // f.gif size is now double the duck size and animated
-                    destinationScale = duckScale * animatedMarkerMultiplier;
+                    // f.gif size is now 200% of the duck size and animated
+                    destinationScale = duckScale * energeticMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 } else if (state === 'arrived') {
-                    // The f.gif marker is now double the size of the duck and has the very-fast animation
-                    destinationScale = duckScale * animatedMarkerMultiplier;
+                    // The f.gif marker is now 200% of the duck and has the very-fast animation
+                    destinationScale = duckScale * energeticMarkerMultiplier;
                     className = 'destination-marker-very-fast';
                     imgSrc = energeticDestinationImageSrc;
                 }
