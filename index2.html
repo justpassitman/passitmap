@@ -130,26 +130,6 @@
             animation: wiggle-duck 0.5s ease-in-out infinite;
         }
 
-        /* NEW: Final bouncing animation for the duck */
-        @keyframes final-bounce-duck {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            25% {
-                transform: translateY(-5px);
-            }
-            50% {
-                transform: translateY(0);
-            }
-            75% {
-                transform: translateY(-3px);
-            }
-        }
-
-        .final-bounce-duck {
-            animation: final-bounce-duck 0.8s ease-out infinite;
-        }
-
         /*
         * The quack-left keyframes now animate from a centered position
         */
@@ -228,10 +208,10 @@
         */
         @keyframes color-pulse {
             0%, 100% {
-                fill: hsl(210, 100%, 75%);
+                fill: hsl(120, 100%, 25%); /* Dark Green */
             }
             50% {
-                fill: hsl(210, 100%, 45%);
+                fill: hsl(120, 100%, 50%); /* Light Green */
             }
         }
 
@@ -277,9 +257,6 @@
             const veryFastAnimationDistance = 700;
             // The arrival distance is now 100 meters (fly distance)
             const arrivalDistance = 100;
-            // NEW: Distance threshold for the final bouncing animation (fly distance)
-            const finalBounceDistance = 350;
-
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -446,9 +423,12 @@
             function setStartMarker() {
                 if (!isMapInitialized) return;
                 
-                // The duck's direction (flip) is now handled directly in updateRouteOnMap
-                // based on the current position relative to the destination.
-                // This function only sets the initial marker or updates its position.
+                let shouldFlip = false;
+                if (startLocation && destinationLocation) {
+                    if (startLocation[1] > destinationLocation[1]) {
+                        shouldFlip = true;
+                    }
+                }
                 
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
@@ -456,12 +436,12 @@
                 if (startOverlay) {
                     startOverlay.setPosition(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
                     if (duckImageElement) { // Use cached element
-                        // The flip logic is now in updateRouteOnMap
+                        duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
                     }
                 } else {
                     const content = `
                         <div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
-                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%;">
+                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
                         </div>
                     `;
 
@@ -659,8 +639,7 @@
                 }
                 
                 try {
-                    // MODIFIED: Added boundary.country=KR to the ORS geocoding URL
-                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}&boundary.country=KR`;
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
                     const geocodeResponse = await fetch(geocodeUrl);
 
                     if (!geocodeResponse.ok) {
@@ -707,14 +686,18 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
+                    // Always try Kakao first with the full address
                     foundDestination = await tryGeocodeWithKakao(destination);
 
                     if (!foundDestination) {
+                        // If Kakao fails, try ORS with the full address
                         foundDestination = await tryGeocodeWithORS(destination);
-                        // Removed simplified address fallback as per user request
-                        if (!foundDestination) {
-                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
-                        }
+                    }
+                    
+                    if (!foundDestination) {
+                        // As a last resort, try ORS with the full address plus ", Seoul"
+                        // Removed aggressive address chopping for ORS
+                        foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
                     }
 
                     if (foundDestination) {
@@ -762,11 +745,11 @@
                     maximumAge: 0
                 };
             
-                // Throttle the updateRouteOnMap call to prevent excessive updates and save battery
+                // Throttle the updateRouteOnMap call
                 const throttledUpdateRoute = throttle((position) => {
                     const newPosition = [position.coords.latitude, position.coords.longitude];
                     startLocation = newPosition;
-                    // setStartMarker() is called inside updateRouteOnMap for better control
+                    setStartMarker();
                     updateRouteOnMap(newPosition);
                 }, 500); // Throttle to once every 500ms
 
@@ -947,46 +930,6 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
-                // MODIFIED: Handle duck direction (always apply based on current/destination)
-                let shouldFlip = false;
-                if (currentPos[1] > destinationLocation[1]) { // Compare current longitude with destination longitude
-                    shouldFlip = true;
-                }
-                if (duckImageElement) { // Use cached element
-                    duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
-                }
-
-                // State machine for arrival based on fly distance
-                if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
-                    updateDestinationMarkerState('arrived', duckScale);
-                    // Ensure duck is wiggling on arrival
-                    if (duckImageElement) { // Use cached element
-                        duckImageElement.classList.remove('final-bounce-duck'); // Ensure bounce is removed
-                        duckImageElement.classList.add('wiggle-duck'); // Ensure wiggle is active for quack
-                    }
-                    if (timerContainerElement) { // Use cached element
-                        timerContainerElement.style.display = 'none'; // Hide timer on arrival
-                    }
-                    if (currentPolyline) {
-                         currentPolyline.setMap(null);
-                         currentPolyline = null;
-                    }
-                    if (locationWatchId) {
-                        navigator.geolocation.clearWatch(locationWatchId);
-                        locationWatchId = null;
-                    }
-                    // Quack for arrival - this should override any other quacking state
-                    if (!quackIntervalId) { 
-                        startQuacking();
-                    }
-                    
-                    // Lock the map view on the destination
-                    map.setCenter(destinationLatLng);
-                    map.setLevel(3);
-
-                    return flyDistance;
-                }
-                
                 // Find the closest point on the original polyline to the current user location.
                 let minDistance = Infinity;
                 let closestPointIndex = -1;
@@ -1016,38 +959,84 @@
                 
                 // Calculate the remaining travel distance by summing the segments
                 const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
-                
-                // MODIFIED: Logic for the final bouncing animation and general duck animation
-                // Ensure only one animation class is active at a time
-                if (duckImageElement) { // Use cached element
-                    if (flyDistance < finalBounceDistance) {
-                        duckImageElement.classList.remove('wiggle-duck'); // Stop normal wiggle
-                        duckImageElement.classList.add('final-bounce-duck'); // Start final bounce
-                    } else {
-                        duckImageElement.classList.remove('final-bounce-duck'); // Remove final bounce
-                        duckImageElement.classList.add('wiggle-duck'); // Resume normal wiggle
+
+                // --- Absolute Rule for Duck Bounce and Quack ---
+                // Activate if (flyDistance < 350m OR remainingTravelDistance < 700m) AND NOT in final arrival state
+                const shouldActivateQuackAndBounce = 
+                    (flyDistance < QUACK_ACTIVATION_DISTANCE || remainingTravelDistance < veryFastAnimationDistance) && 
+                    flyDistance >= arrivalDistance;
+
+                if (shouldActivateQuackAndBounce) {
+                    // Activate bounce
+                    if (duckImageElement) { 
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
+                    // Activate quack
+                    if (!quackIntervalId) { 
+                        startQuacking();
+                    }
+                } else {
+                    // Deactivate bounce
+                    if (duckImageElement) { 
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    // Deactivate quack
+                    if (quackIntervalId) { 
+                        stopQuacking();
                     }
                 }
 
-                // State machine for destination marker based on remaining travel distance
-                if (remainingTravelDistance < veryFastAnimationDistance) {
+                // State machine for actual arrival based on fly distance
+                if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
+                    updateDestinationMarkerState('arrived', duckScale);
+                    // Ensure duck is wiggling on arrival
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'none'; // Hide timer on arrival
+                    }
+                    if (currentPolyline) {
+                         currentPolyline.setMap(null);
+                         currentPolyline = null;
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    // Quack for arrival - this should override any other quacking state
+                    if (!quackIntervalId) { 
+                        startQuacking();
+                    }
+                    
+                    // Lock the map view on the destination
+                    map.setCenter(destinationLatLng);
+                    map.setLevel(3);
+
+                    return flyDistance;
+                }
+                
+                // Update destination marker state (d.gif/f.gif) based on remaining travel distance AND fly distance
+                if (flyDistance < 350) { // f.gif when flyDistance is below 350m
                     updateDestinationMarkerState('very-fast', duckScale);
                     if (timerContainerElement) { // Use cached element
                         timerContainerElement.style.display = 'block';
                     }
-                    stopQuacking(); // Stop quacking unless it's the final arrival
-                } else if (remainingTravelDistance < gentleAnimationDistance) {
+                } else if (remainingTravelDistance < veryFastAnimationDistance) { // Original f.gif condition (travel distance < 700)
+                    updateDestinationMarkerState('very-fast', duckScale);
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'block';
+                    }
+                } else if (remainingTravelDistance < gentleAnimationDistance) { // d.gif condition (travel distance < 1500)
                     updateDestinationMarkerState('gentle', duckScale);
                     if (timerContainerElement) { // Use cached element
                         timerContainerElement.style.display = 'block';
                     }
-                    stopQuacking(); // Stop quacking unless it's the final arrival
-                } else {
+                } else { // Default state
                     updateDestinationMarkerState('default', duckScale);
                     if (timerContainerElement) { // Use cached element
                         timerContainerElement.style.display = 'block';
                     }
-                    stopQuacking(); // Stop quacking unless it's the final arrival
                 }
 
                 // Call the marker size update function with the calculated distance
@@ -1060,7 +1049,7 @@
                 const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
                 // Display time if route is valid
-                if (timerContainerElement) { // Use cached element
+                if (timerContainerElement) { 
                     timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
                 }
 
