@@ -520,7 +520,7 @@
             function init() {
                 timerContainerElement = document.getElementById('timer-container'); // Cache element
                 timerContainerElement.style.display = 'block';
-                timerContainerElement.innerHTML = '⏳';
+                timerContainerElement.innerHTML = '⏳'; // Explicitly set loading state
                 const mapContainer = document.getElementById('map');
 
                 if (KAKAO_API_KEY.includes("YOUR_KAKAO_API_KEY") || ORS_API_KEY.includes("YOUR_ORS_API_KEY")) {
@@ -1035,8 +1035,13 @@
                 // Changed to use Math.ceil() to round up the remaining time.
                 const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
-                if (timerContainerElement) { // Use cached element
-                    timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
+                // Robust timer update: display time or "Arrived" if duration is invalid/zero
+                if (timerContainerElement) { 
+                    if (isNaN(durationInMinutes) || !isFinite(durationInMinutes) || remainingTravelDistance <= 0) {
+                        timerContainerElement.innerHTML = '📍 Arrived'; 
+                    } else {
+                        timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
+                    }
                 }
 
                 // Update the duck marker position
