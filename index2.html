@@ -285,8 +285,8 @@
 
             // Image assets - Using the local files as requested.
             const duckImageSrc = 'duck.png';
-            const gentleDestinationImageSrc = 'd.png';
-            const energeticDestinationImageSrc = 'f.png';
+            const gentleDestinationImageSrc = 'd.gif';
+            const energeticDestinationImageSrc = 'f.gif';
 
             // =================================================================================================================
             // UI & Animation Functions
@@ -695,7 +695,7 @@
                 } catch (error) {
                     console.error("Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "🤯 address not found";
+                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🤯 address not found";
                     }
                 }
             }
