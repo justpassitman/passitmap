@@ -229,10 +229,10 @@
 
         /* New style for the bolt effect using text */
         .bolt-text {
-            font-size: 16px; /* Smaller, adjust as needed */
+            font-size: 10px; /* Smaller to fit inside the line */
             font-weight: bold;
-            color: rgba(255, 255, 255, 0.8); /* White and more seethrough */
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Dark outline */
+            color: rgba(255, 255, 255, 0.7); /* White and more seethrough */
+            /* Removed text-shadow for no outline */
             white-space: nowrap; /* Keep "-" on one line */
             transform-origin: center center; /* Ensure rotation is centered */
         }
@@ -306,7 +306,7 @@
             const BOLT_CHARACTER = '-'; // Changed to single hyphen
             const MAX_BOLTS = 3;
             const BOLT_SPEED_PER_FRAME = 0.005; // Speed for each dash
-            const BOLT_SPAWN_INTERVAL_MS = 2000; // 2 seconds between each dash appearing
+            const BOLT_SPAWN_DELAYS = [0, 2000, 3000]; // Specific delays for each bolt
             let currentPathForBoltAnimation = [];
 
             // =================================================================================================================
@@ -543,7 +543,7 @@
                         if (animatedBoltOverlays.length === 1) {
                             boltAnimationId = requestAnimationFrame(animateBoltFrame);
                         }
-                    }, i * BOLT_SPAWN_INTERVAL_MS);
+                    }, BOLT_SPAWN_DELAYS[i]); // Use specific delays
                 }
             }
 
