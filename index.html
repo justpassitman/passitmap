@@ -272,6 +272,7 @@
             let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
+            let lastKnownDuration = null; // NEW: Store the last known duration
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -644,29 +645,39 @@
                             lastKnownPosition = newPosition;
                         }
 
-                        const distanceMoved = calculateDistance(lastKnownPosition, newPosition);
+                        // MODIFIED: distance to destination
+                        const distance = calculateDistance(newPosition, destinationLocation);
+                        
+                        // NEW: Determine API call threshold based on distance
+                        const apiCallThreshold = distance < 1000 ? 50 : minDistanceForApiCall;
 
                         startLocation = newPosition;
                         setStartMarker();
 
                         // MODIFIED: Check distance to destination to decide map behavior
-                        const distance = calculateDistance(startLocation, destinationLocation);
                         if (distance < veryFastAnimationDistance) {
-                             centerMapOnCurrentPosition(); // NEW: Center map on current position
+                             centerMapOnCurrentPosition();
                         } else {
-                             updateMapViewToFitMarkers(); // Old behavior: Fit both markers in the view
+                             updateMapViewToFitMarkers();
                         }
 
                         if (lastApiCallPosition) {
                             const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
 
-                            if (distanceSinceLastCall > minDistanceForApiCall) {
+                            // MODIFIED: Use the new dynamic threshold
+                            if (distanceSinceLastCall > apiCallThreshold) {
                                 lastApiCallPosition = newPosition;
                                 getRouteAndTravelTime();
                             }
                         }
                         
                         lastKnownPosition = newPosition;
+                        
+                        // NEW: Update timer with the last known duration to prevent it from resetting
+                        if (lastKnownDuration !== null && timerContainer) {
+                             const remainingMinutes = Math.round(lastKnownDuration / 60);
+                             timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        }
                     },
                     (error) => {
                         console.error("Real-time geolocation error:", error);
@@ -834,7 +845,13 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        timerContainer.innerHTML = 'Calculating route...';
+                        // Keep displaying the last known duration while a new one is calculated
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
                     }
                     stopQuacking();
                 } else if (distance < gentleAnimationDistance) {
@@ -845,7 +862,12 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        timerContainer.innerHTML = 'Calculating route...';
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
                     }
                     stopQuacking();
                 } else {
@@ -856,7 +878,12 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        timerContainer.innerHTML = 'Calculating route...';
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
                     }
                     stopQuacking();
                 }
@@ -902,6 +929,7 @@
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
                         const durationInSeconds = route.summary.duration;
+                        lastKnownDuration = durationInSeconds; // NEW: Store the last known duration
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
