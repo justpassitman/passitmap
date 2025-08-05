@@ -33,7 +33,7 @@
         }
 
         .map-container {
-            flex-grow = 1;
+            flex-grow: 1; /* Corrected typo from flex-grow = 1 */
             padding: 0;
             height: 100%;
             border-radius: 0;
@@ -277,16 +277,43 @@
             let currentPolyline = null; // The polyline that represents the remaining path
             let fullPolylinePath = null; // The full, pre-fetched route
             let locationWatchId = null;
-            let timerContainer = null;
-            let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
-            // Removed isQuackingActive as its state is now managed by quackIntervalId directly.
+            let isMapInitialized = false; // Flag to ensure map is ready
+
+            // Cached DOM elements for efficiency
+            let timerContainerElement = null;
+            let duckImageElement = null;
+            let duckMarkerContainer = null;
+            let destinationMarkerContainer = null;
 
             // Image assets - Using the local files as requested.
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
             const energeticDestinationImageSrc = 'f.gif';
+
+            // =================================================================================================================
+            // Utility Functions
+            // =================================================================================================================
+
+            /**
+             * Throttles a function to limit how often it can be called.
+             * @param {function} func The function to throttle.
+             * @param {number} limit The minimum time (in milliseconds) between function calls.
+             * @returns {function} The throttled function.
+             */
+            function throttle(func, limit) {
+                let inThrottle;
+                return function() {
+                    const args = arguments;
+                    const context = this;
+                    if (!inThrottle) {
+                        func.apply(context, args);
+                        inThrottle = true;
+                        setTimeout(() => inThrottle = false, limit);
+                    }
+                }
+            }
 
             // =================================================================================================================
             // UI & Animation Functions
@@ -300,17 +327,13 @@
             * @param {number} remainingTravelDistance The actual remaining distance along the route in meters.
             */
             function updateAllMarkerSizes(level, remainingTravelDistance) {
-                if (!startOverlay) return;
+                if (!startOverlay || !duckImageElement) return;
                 
-                const duckImageElement = document.getElementById('duck-image');
-                if (!duckImageElement) return;
-
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (level / 2)), maxMarkerSize);
                 duckImageElement.style.width = `${duckScale}px`;
                 duckImageElement.style.height = `${duckScale}px`;
                 
-                const destinationContainer = document.getElementById('destination-marker-container');
-                if (destinationContainer) {
+                if (destinationMarkerContainer) {
                     let destinationScale = 0;
                     // Use the remaining travel distance for animation thresholds
                     if (remainingTravelDistance < gentleAnimationDistance) {
@@ -320,8 +343,8 @@
                     } else {
                         destinationScale = duckScale * destinationSizeMultiplier;
                     }
-                    destinationContainer.style.width = `${destinationScale}px`;
-                    destinationContainer.style.height = `${destinationScale}px`;
+                    destinationMarkerContainer.style.width = `${destinationScale}px`;
+                    destinationMarkerContainer.style.height = `${destinationScale}px`;
                 }
             }
             
@@ -386,6 +409,8 @@
                         yAnchor: 1.0,
                         zIndex: 1
                     });
+                    // Cache the destination marker container after it's created
+                    destinationMarkerContainer = document.getElementById('destination-marker-container');
                 }
             }
 
@@ -407,8 +432,7 @@
                 
                 if (startOverlay) {
                     startOverlay.setPosition(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                    const duckImageElement = document.getElementById('duck-image');
-                    if (duckImageElement) {
+                    if (duckImageElement) { // Use cached element
                         duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
                     }
                 } else {
@@ -425,6 +449,9 @@
                         yAnchor: 1.0,
                         zIndex: 2
                     });
+                    // Cache the duck marker elements after they are created
+                    duckMarkerContainer = document.getElementById('duck-marker-container');
+                    duckImageElement = document.getElementById('duck-image');
                 }
             }
             
@@ -432,8 +459,7 @@
              * Creates and animates a "quack!" text element with multiple colors.
              */
             function createQuack() {
-                const duckContainer = document.getElementById('duck-marker-container');
-                if (!duckContainer) return;
+                if (!duckMarkerContainer) return; // Use cached element
 
                 const quack = document.createElement('div');
                 const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
@@ -455,7 +481,7 @@
                     quackDirection = 'left';
                 }
 
-                duckContainer.appendChild(quack);
+                duckMarkerContainer.appendChild(quack); // Use cached element
 
                 setTimeout(() => {
                     quack.remove();
@@ -477,9 +503,8 @@
                 if (quackIntervalId) {
                     clearInterval(quackIntervalId);
                     quackIntervalId = null;
-                    const duckContainer = document.getElementById('duck-marker-container');
-                    if (duckContainer) {
-                        const quacks = duckContainer.querySelectorAll('.quack-text');
+                    if (duckMarkerContainer) { // Use cached element
+                        const quacks = duckMarkerContainer.querySelectorAll('.quack-text');
                         quacks.forEach(q => q.remove());
                     }
                 }
@@ -493,9 +518,9 @@
             * Initializes the map and fetches the destination from URL parameters.
             */
             function init() {
-                timerContainer = document.getElementById('timer-container');
-                timerContainer.style.display = 'block';
-                timerContainer.innerHTML = '⏳';
+                timerContainerElement = document.getElementById('timer-container'); // Cache element
+                timerContainerElement.style.display = 'block';
+                timerContainerElement.innerHTML = '⏳';
                 const mapContainer = document.getElementById('map');
 
                 if (KAKAO_API_KEY.includes("YOUR_KAKAO_API_KEY") || ORS_API_KEY.includes("YOUR_ORS_API_KEY")) {
@@ -516,9 +541,7 @@
 
                 kakao.maps.event.addListener(map, 'zoom_changed', function() {
                     const level = map.getLevel();
-                    // NEW: We need to update the marker sizes with the current remaining distance.
                     // This will be handled in `updateRouteOnMap` for consistency.
-                    // So we don't call updateAllMarkerSizes here.
                 });
                 
                 // Get destination from URL
@@ -526,7 +549,7 @@
                 const destinationAddress = urlParams.get('destination');
                 
                 if (!destinationAddress) {
-                    timerContainer.innerHTML = '⚠️ Please provide a destination, you know how ⚠️';
+                    timerContainerElement.innerHTML = '⚠️ Please provide a destination, you know how ⚠️'; // Use cached element
                     return;
                 }
 
@@ -679,11 +702,11 @@
                     if (foundDestination) {
                         destinationLocation = [foundDestination.lat, foundDestination.lng];
 
-                        setStartMarker();
+                        setStartMarker(); // This will cache duckImageElement and duckMarkerContainer
                         
                         const currentLevel = map.getLevel();
                         const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-                        updateDestinationMarkerState('default', duckScale);
+                        updateDestinationMarkerState('default', duckScale); // This will cache destinationMarkerContainer
                         
                         updateMapViewToFitMarkers();
 
@@ -693,14 +716,14 @@
                         // Start the location tracking
                         startLocationPolling();
                     } else {
-                        if (timerContainer) {
-                            timerContainer.innerHTML = '🤯 address not found';
+                        if (timerContainerElement) { // Use cached element
+                            timerContainerElement.innerHTML = '🤯 address not found';
                         }
                     }
                 } catch (error) {
                     console.error("Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
@@ -721,23 +744,23 @@
                     maximumAge: 0
                 };
             
+                // Throttle the updateRouteOnMap call
+                const throttledUpdateRoute = throttle((position) => {
+                    const newPosition = [position.coords.latitude, position.coords.longitude];
+                    startLocation = newPosition;
+                    setStartMarker();
+                    updateRouteOnMap(newPosition);
+                }, 500); // Throttle to once every 500ms
+
                 locationWatchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const newPosition = [position.coords.latitude, position.coords.longitude];
-                        
-                        startLocation = newPosition;
-                        setStartMarker();
-                        
-                        // Pass the new position to a single update function
-                        updateRouteOnMap(newPosition);
-                    },
+                    throttledUpdateRoute, // Use the throttled function
                     (error) => {
                         console.error("Real-time geolocation error:", error);
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
                         }
-                        if (timerContainer) {
-                            timerContainer.innerHTML = "😵 GPS out";
+                        if (timerContainerElement) { // Use cached element
+                            timerContainerElement.innerHTML = "😵 GPS out";
                         }
                     },
                     watchOptions
@@ -829,14 +852,14 @@
                         updateRouteOnMap(startLocation);
 
                     } else {
-                        if (timerContainer) {
-                            timerContainer.innerHTML = "🤯 Routing data could not be found.";
+                        if (timerContainerElement) { // Use cached element
+                            timerContainerElement.innerHTML = "🤯 Routing data could not be found.";
                         }
                     }
                 } catch (error) {
                     console.error("Routing Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
@@ -891,13 +914,41 @@
                 // Calculate the straight-line ("fly") distance to the destination.
                 const flyDistance = calculateDistance(currentPos, destinationLocation);
 
-                const duckImageElement = document.getElementById('duck-image');
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
+                // Find the closest point on the original polyline to the current user location.
+                let minDistance = Infinity;
+                let closestPointIndex = -1;
+
+                for (let i = 0; i < fullPolylinePath.length; i++) {
+                    const distance = calculateDistance(currentPos, [fullPolylinePath[i].getLat(), fullPolylinePath[i].getLng()]);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestPointIndex = i;
+                    }
+                }
+                
+                // Shorten the polyline to represent the remaining path.
+                const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
+                if (currentPolyline) {
+                    currentPolyline.setPath(remainingPolyline);
+                } else {
+                    currentPolyline = new kakao.maps.Polyline({
+                        path: remainingPolyline,
+                        strokeWeight: 4,
+                        strokeColor: '#00B050',
+                        strokeOpacity: 0.8,
+                        strokeStyle: 'solid'
+                    });
+                    currentPolyline.setMap(map);
+                }
+                
+                // Calculate the remaining travel distance by summing the segments
+                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
+
                 // --- Absolute Rule for Duck Bounce and Quack ---
-                // This logic will apply unless the actual arrival state (flyDistance < arrivalDistance) takes over.
-                // Activate if flyDistance < 350m OR remainingTravelDistance < 700m AND NOT in final arrival state
+                // Activate if (flyDistance < 350m OR remainingTravelDistance < 700m) AND NOT in final arrival state
                 const shouldActivateQuackAndBounce = 
                     (flyDistance < QUACK_ACTIVATION_DISTANCE || remainingTravelDistance < veryFastAnimationDistance) && 
                     flyDistance >= arrivalDistance;
@@ -929,8 +980,8 @@
                     if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
                     }
-                    if (timerContainer) {
-                        timerContainer.style.display = 'none';
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'none';
                     }
                     if (currentPolyline) {
                          currentPolyline.setMap(null);
@@ -952,56 +1003,26 @@
                     return flyDistance;
                 }
                 
-                // Find the closest point on the original polyline to the current user location.
-                let minDistance = Infinity;
-                let closestPointIndex = -1;
-
-                for (let i = 0; i < fullPolylinePath.length; i++) {
-                    const distance = calculateDistance(currentPos, [fullPolylinePath[i].getLat(), fullPolylinePath[i].getLng()]);
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestPointIndex = i;
-                    }
-                }
-                
-                // Shorten the polyline to represent the remaining path.
-                const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
-                if (currentPolyline) {
-                    currentPolyline.setPath(remainingPolyline);
-                } else {
-                    currentPolyline = new kakao.maps.Polyline({
-                        path: remainingPolyline,
-                        strokeWeight: 4,
-                        strokeColor: '#00B050',
-                        strokeOpacity: 0.8,
-                        strokeStyle: 'solid'
-                    });
-                    currentPolyline.setMap(map);
-                }
-                
-                // Calculate the remaining travel distance by summing the segments
-                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
-                
                 // Update destination marker state (d.gif/f.gif) based on remaining travel distance AND fly distance
                 if (flyDistance < 350) { // f.gif when flyDistance is below 350m
                     updateDestinationMarkerState('very-fast', duckScale);
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'block';
                     }
                 } else if (remainingTravelDistance < veryFastAnimationDistance) { // Original f.gif condition (travel distance < 700)
                     updateDestinationMarkerState('very-fast', duckScale);
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'block';
                     }
                 } else if (remainingTravelDistance < gentleAnimationDistance) { // d.gif condition (travel distance < 1500)
                     updateDestinationMarkerState('gentle', duckScale);
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'block';
                     }
                 } else { // Default state
                     updateDestinationMarkerState('default', duckScale);
-                    if (timerContainer) {
-                        timerContainer.style.display = 'block';
+                    if (timerContainerElement) { // Use cached element
+                        timerContainerElement.style.display = 'block';
                     }
                 }
 
@@ -1014,8 +1035,8 @@
                 // Changed to use Math.ceil() to round up the remaining time.
                 const durationInMinutes = Math.ceil(remainingDurationInSeconds / 60);
                 
-                if (timerContainer) {
-                    timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
+                if (timerContainerElement) { // Use cached element
+                    timerContainerElement.innerHTML = `<b>${durationInMinutes} min</b>`;
                 }
 
                 // Update the duck marker position
