@@ -506,10 +506,10 @@
                 if (!animatedBoltPolyline) {
                     animatedBoltPolyline = new kakao.maps.Polyline({
                         path: [], // Will be set dynamically
-                        strokeWeight: 6, // Thicker for the bolt
+                        strokeWeight: 8, // Thicker for the bolt
                         strokeColor: '#FFFFFF', // White color
-                        strokeOpacity: 1,
-                        strokeStyle: 'solid',
+                        strokeOpacity: 0.6, // More seethrough
+                        strokeStyle: 'dashed', // For a ">>>" approximation
                         zIndex: 5 // Ensure it's above the main polyline
                     });
                     animatedBoltPolyline.setMap(map);
@@ -525,32 +525,30 @@
              * Animates a segment of the polyline to create a "bolt" effect.
              */
             function animateBoltFrame() {
-                if (currentPathForBoltAnimation.length === 0 || !animatedBoltPolyline) {
+                if (currentPathForBoltAnimation.length < 2 || !animatedBoltPolyline) { // Need at least 2 points for a line
                     boltAnimationId = requestAnimationFrame(animateBoltFrame);
                     return;
                 }
 
                 boltProgress += BOLT_SPEED_PER_FRAME;
-                if (boltProgress > 1) {
+                if (boltProgress > 1 + BOLT_LENGTH_RATIO) { // Allow bolt to completely exit the line before resetting
                     boltProgress = 0; // Reset to loop the animation
                 }
 
                 const pathLength = currentPathForBoltAnimation.length;
-                const boltLength = Math.max(2, Math.floor(pathLength * BOLT_LENGTH_RATIO)); // Ensure at least 2 points
+                const boltLengthInPoints = Math.max(2, Math.floor(pathLength * BOLT_LENGTH_RATIO));
                 
-                const startPointIndex = Math.floor(pathLength * boltProgress);
-                let endPointIndex = startPointIndex + boltLength;
+                // Calculate start and end points of the bolt based on progress
+                let currentStartIndex = Math.floor(pathLength * boltProgress);
+                let currentEndIndex = currentStartIndex + boltLengthInPoints;
 
-                let boltSegment;
+                let boltSegment = [];
 
-                // Handle wrap-around for the bolt segment
-                if (endPointIndex <= pathLength) {
-                    boltSegment = currentPathForBoltAnimation.slice(startPointIndex, endPointIndex);
-                } else {
-                    // Bolt wraps around, create two segments
-                    const firstPart = currentPathForBoltAnimation.slice(startPointIndex, pathLength);
-                    const secondPart = currentPathForBoltAnimation.slice(0, endPointIndex - pathLength);
-                    boltSegment = firstPart.concat(secondPart);
+                // Only draw the bolt if it's within the path bounds
+                if (currentStartIndex < pathLength) {
+                    // Ensure the end index does not exceed the path length
+                    currentEndIndex = Math.min(currentEndIndex, pathLength);
+                    boltSegment = currentPathForBoltAnimation.slice(currentStartIndex, currentEndIndex);
                 }
                 
                 animatedBoltPolyline.setPath(boltSegment);
