@@ -265,7 +265,6 @@
             // Map view and routing logic thresholds
             const centerOnDestinationThreshold = 150;
             const HIGH_ACCURACY_THRESHOLD_METERS = 500;
-            const AVERAGE_SPEED_KMPH = 15; // Average speed for delivery duck in km/h
 
             // Internal state variables
             let map = null;
@@ -282,6 +281,8 @@
             let quackDirection = 'left';
             let isHighAccuracyMode = false;
             let routeIsFetched = false;
+            let fullRouteDuration = 0; // NEW: Store total duration from API
+            let fullRouteDistance = 0; // NEW: Store total distance from API
 
             // Image assets - Using the local files as requested.
             const duckImageSrc = 'duck.png';
@@ -544,7 +545,7 @@
             }
 
             /**
-            * NEW FUNCTION: Centers the map on the current position.
+            * NEW: Centers the map on the current position.
             */
             function centerMapOnCurrentPosition() {
                 if (!isMapInitialized || !startLocation) {
@@ -821,6 +822,9 @@
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
                         
+                        fullRouteDuration = route.summary.duration; // Store the total duration from the API
+                        fullRouteDistance = route.summary.distance; // Store the total distance from the API
+                        
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         fullPolylinePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
                         routeIsFetched = true;
@@ -878,7 +882,7 @@
             * NEW: Updates the UI based on the pre-fetched route, "erasing" the line as the user moves.
             */
             function updateRouteOnMap(currentPos) {
-                if (!map || !fullPolylinePath) {
+                if (!map || !fullPolylinePath || !routeIsFetched) {
                     return;
                 }
                 
@@ -965,18 +969,17 @@
                     currentPolyline.setMap(map);
                 }
 
-                // Recalculate remaining distance and time.
-                let remainingDistance = 0;
-                for (let i = 0; i < remainingPolyline.length - 1; i++) {
-                    remainingDistance += calculateDistance(
-                        [remainingPolyline[i].getLat(), remainingPolyline[i].getLng()],
-                        [remainingPolyline[i+1].getLat(), remainingPolyline[i+1].getLng()]
-                    );
+                // NEW: Use the total API duration and the remaining points to calculate time.
+                const totalPoints = fullPolylinePath.length;
+                const remainingPoints = fullPolylinePath.length - closestPointIndex;
+
+                let durationInMinutes = 0;
+                if (totalPoints > 0) {
+                    const progress = remainingPoints / totalPoints;
+                    const remainingDurationInSeconds = fullRouteDuration * progress;
+                    durationInMinutes = Math.round(remainingDurationInSeconds / 60);
                 }
                 
-                const durationInSeconds = (remainingDistance / 1000) / (AVERAGE_SPEED_KMPH / 60 / 60);
-                const durationInMinutes = Math.round(durationInSeconds / 60);
-
                 if (timerContainer) {
                     timerContainer.innerHTML = `<b>${durationInMinutes} min</b>`;
                 }
