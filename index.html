@@ -245,7 +245,12 @@
             
             // Kakao REST API key from the user's original code for geocoding.
             const KAKAO_API_KEY = "dad89b90a6acaa5acadc74e2329cab63";
-            const minDistanceForApiCall = 350;
+            
+            // NEW: The distance threshold to switch from API calls to client-side timer calculation.
+            const hybridTimerThreshold = 800;
+            // The distance threshold for an API call to OpenRouteService (ORS).
+            // Once the distance to destination is below hybridTimerThreshold, this is no longer used.
+            const orsApiCallThreshold = 350;
             // The gentle animation (d.gif) is now used when the user is within 1500m.
             const gentleAnimationDistance = 1500;
             // The very fast animation (f.gif) is now used when the user is within 700m.
@@ -274,7 +279,10 @@
             let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
-            let lastKnownDuration = null; // NEW: Store the last known duration
+            let lastKnownDuration = null; // Store the last known duration from API
+            // NEW: Variables for client-side speed calculation
+            let lastPositionTimestamp = null;
+            let lastKnownSpeed = 0; // meters per second
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -642,22 +650,64 @@
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const newPosition = [position.coords.latitude, position.coords.longitude];
-
+                        const currentTime = Date.now();
+                        
                         if (!lastKnownPosition) {
                             lastKnownPosition = newPosition;
+                            lastPositionTimestamp = currentTime;
                         }
 
-                        // MODIFIED: distance to destination
-                        const distance = calculateDistance(newPosition, destinationLocation);
+                        // Calculate distance and time elapsed since last check for speed calculation
+                        const distanceSinceLastUpdate = calculateDistance(lastKnownPosition, newPosition);
+                        const timeElapsedSeconds = (currentTime - lastPositionTimestamp) / 1000;
                         
-                        // NEW: Determine API call threshold based on distance
-                        const apiCallThreshold = distance < 1000 ? 50 : minDistanceForApiCall;
+                        // Update last known speed, preventing division by zero.
+                        if (timeElapsedSeconds > 0) {
+                             lastKnownSpeed = distanceSinceLastUpdate / timeElapsedSeconds;
+                        }
 
+                        // Update current position for the marker
                         startLocation = newPosition;
                         setStartMarker();
 
+                        // Distance to destination
+                        const distanceToDestination = calculateDistance(newPosition, destinationLocation);
+                        
+                        // Hybrid Timer Logic: Switch from API to client-side calculation
+                        if (distanceToDestination < hybridTimerThreshold && lastKnownSpeed > 0) {
+                            // Stop making API calls and use local speed for estimation
+                            if (lastApiCallPosition) {
+                                lastApiCallPosition = null; // Prevent new API calls
+                            }
+
+                            // Estimate remaining time in seconds
+                            const estimatedRemainingSeconds = Math.round(distanceToDestination / lastKnownSpeed);
+                            const remainingMinutes = Math.floor(estimatedRemainingSeconds / 60);
+                            const remainingSeconds = estimatedRemainingSeconds % 60;
+                            
+                            if (timerContainer) {
+                                // Display in the format "X min Y sec" or "X min" if seconds are 0
+                                let timerText = `<b>${remainingMinutes} min</b>`;
+                                if (remainingMinutes === 0) {
+                                     timerText = `<b>${remainingSeconds} sec</b>`;
+                                } else if (remainingSeconds > 0) {
+                                    timerText = `<b>${remainingMinutes} min ${remainingSeconds} sec</b>`;
+                                }
+                                timerContainer.innerHTML = timerText;
+                            }
+                        } else {
+                            // Original logic: call API based on distance from last API call
+                            if (lastApiCallPosition) {
+                                const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
+                                if (distanceSinceLastCall > orsApiCallThreshold) {
+                                    lastApiCallPosition = newPosition;
+                                    getRouteAndTravelTime();
+                                }
+                            }
+                        }
+
                         // MODIFIED START: The following block has been changed to center on the destination with a close zoom.
-                        if (distance < veryFastAnimationDistance) {
+                        if (distanceToDestination < veryFastAnimationDistance) {
                             const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
                             map.setCenter(destinationLatLng);
                             // Set a high zoom level to ensure a close view (level 1-2 is usually very close).
@@ -667,24 +717,9 @@
                             updateMapViewToFitMarkers();
                         }
                         // MODIFIED END
-
-                        if (lastApiCallPosition) {
-                            const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
-
-                            // MODIFIED: Use the new dynamic threshold
-                            if (distanceSinceLastCall > apiCallThreshold) {
-                                lastApiCallPosition = newPosition;
-                                getRouteAndTravelTime();
-                            }
-                        }
                         
                         lastKnownPosition = newPosition;
-                        
-                        // NEW: Update timer with the last known duration to prevent it from resetting
-                        if (lastKnownDuration !== null && timerContainer) {
-                             const remainingMinutes = Math.round(lastKnownDuration / 60);
-                             timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        }
+                        lastPositionTimestamp = currentTime;
                     },
                     (error) => {
                         console.error("Real-time geolocation error:", error);
@@ -855,13 +890,6 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        // Keep displaying the last known duration while a new one is calculated
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
                     }
                     stopQuacking();
                 } else if (distance < gentleAnimationDistance) {
@@ -872,12 +900,6 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
                     }
                     stopQuacking();
                 } else {
@@ -888,12 +910,6 @@
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'block'; // Ensure the box is visible
-                        if (lastKnownDuration !== null) {
-                            const remainingMinutes = Math.round(lastKnownDuration / 60);
-                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
-                        } else {
-                            timerContainer.innerHTML = 'Calculating route...';
-                        }
                     }
                     stopQuacking();
                 }
@@ -903,6 +919,11 @@
                     if (timerContainer) {
                         timerContainer.innerHTML = "🔑 ORS API key missing.";
                     }
+                    return;
+                }
+                
+                // NEW: Stop calling the API if we're within the hybrid timer threshold
+                if (distance < hybridTimerThreshold) {
                     return;
                 }
 
@@ -942,7 +963,7 @@
                         const route = data.routes[0];
                         const encodedGeometry = route.geometry;
                         const durationInSeconds = route.summary.duration;
-                        lastKnownDuration = durationInSeconds; // NEW: Store the last known duration
+                        lastKnownDuration = durationInSeconds; // Store the last known duration
 
                         const routeCoordinates = decodePolyline(encodedGeometry);
                         const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
