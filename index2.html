@@ -281,7 +281,7 @@
             let isMapInitialized = false;
             let quackIntervalId = null;
             let quackDirection = 'left';
-            let isQuackingActive = false; // New state variable for quacking animation
+            // Removed isQuackingActive as its state is now managed by quackIntervalId directly.
 
             // Image assets - Using the local files as requested.
             const duckImageSrc = 'duck.png';
@@ -895,32 +895,35 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
-                // --- Independent Duck Bounce Logic (based on flyDistance < 350m) ---
-                if (duckImageElement) {
-                    if (flyDistance < 350) {
+                // --- Absolute Rule for Duck Bounce and Quack at < 350m fly distance ---
+                // This logic will apply unless the actual arrival state (flyDistance < arrivalDistance) takes over.
+                if (flyDistance < QUACK_ACTIVATION_DISTANCE && flyDistance >= arrivalDistance) {
+                    // Activate bounce
+                    if (duckImageElement && !duckImageElement.classList.contains('wiggle-duck')) {
                         duckImageElement.classList.add('wiggle-duck');
-                    } else {
+                    }
+                    // Activate quack
+                    if (!quackIntervalId) { // Check if quacking is NOT already running
+                        startQuacking();
+                    }
+                } else {
+                    // Deactivate bounce
+                    if (duckImageElement && duckImageElement.classList.contains('wiggle-duck')) {
                         duckImageElement.classList.remove('wiggle-duck');
                     }
-                }
-
-                // --- Independent Quack Animation Logic (based on flyDistance < 350m) ---
-                if (flyDistance < QUACK_ACTIVATION_DISTANCE) {
-                    if (!isQuackingActive) {
-                        startQuacking();
-                        isQuackingActive = true;
-                    }
-                } else { // flyDistance >= QUACK_ACTIVATION_DISTANCE
-                    if (isQuackingActive) {
+                    // Deactivate quack (unless in arrival state, which handles its own quacking)
+                    if (quackIntervalId && flyDistance >= QUACK_ACTIVATION_DISTANCE) { // Only stop if outside 350m range
                         stopQuacking();
-                        isQuackingActive = false;
                     }
                 }
 
-                // State machine for arrival based on fly distance
+                // State machine for actual arrival based on fly distance
                 if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
                     updateDestinationMarkerState('arrived', duckScale);
-                    // The wiggle-duck is already handled above.
+                    // Ensure duck is wiggling on arrival
+                    if (duckImageElement && !duckImageElement.classList.contains('wiggle-duck')) {
+                        duckImageElement.classList.add('wiggle-duck');
+                    }
                     if (timerContainer) {
                         timerContainer.style.display = 'none';
                     }
@@ -932,10 +935,9 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
-                    // Ensure quacking is active for arrival, even if it was just stopped by the 350m check
-                    if (!isQuackingActive) { 
+                    // Quack for arrival - this should override any other quacking state
+                    if (!quackIntervalId) { // Ensure it starts if not already
                         startQuacking();
-                        isQuackingActive = true;
                     }
                     
                     // Lock the map view on the destination
