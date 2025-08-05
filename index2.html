@@ -267,6 +267,9 @@
             // The multiplier for the energetic animation (f.gif) is unchanged.
             const energeticMarkerMultiplier = 2;
 
+            // NEW: Configuration for speed smoothing
+            const maxSpeedReadings = 5; // Use a rolling average of the last 5 speed readings
+            const minTimeThreshold = 2; // Don't calculate speed if time elapsed is less than 2 seconds
 
             let map = null;
             let startLocation = null;
@@ -282,9 +285,10 @@
             let quackIntervalId = null;
             let quackDirection = 'left';
             let lastKnownDuration = null; // Store the last known duration from API
-            // NEW: Variables for client-side speed calculation
+            // NEW: Variables for client-side speed calculation and smoothing
             let lastPositionTimestamp = null;
             let lastKnownSpeed = 0; // meters per second
+            let speedReadings = []; // Array to store recent speed readings for averaging
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -663,11 +667,20 @@
                         const distanceSinceLastUpdate = calculateDistance(lastKnownPosition, newPosition);
                         const timeElapsedSeconds = (currentTime - lastPositionTimestamp) / 1000;
                         
-                        // Update last known speed, preventing division by zero.
-                        if (timeElapsedSeconds > 0) {
-                             lastKnownSpeed = distanceSinceLastUpdate / timeElapsedSeconds;
+                        // NEW: Implement speed averaging and a time threshold for stability.
+                        if (timeElapsedSeconds > minTimeThreshold) {
+                            const newSpeed = distanceSinceLastUpdate / timeElapsedSeconds;
+                            // Add new speed to the rolling average array
+                            speedReadings.push(newSpeed);
+                            // Keep the array at a fixed size
+                            if (speedReadings.length > maxSpeedReadings) {
+                                speedReadings.shift(); // Remove the oldest reading
+                            }
+                            // Calculate the average speed
+                            const totalSpeed = speedReadings.reduce((sum, speed) => sum + speed, 0);
+                            lastKnownSpeed = totalSpeed / speedReadings.length;
                         }
-
+                        
                         // Update current position for the marker
                         startLocation = newPosition;
                         setStartMarker();
