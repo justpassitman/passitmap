@@ -226,16 +226,6 @@
             width: 100%;
             height: 100%;
         }
-
-        /* New style for the bolt effect using text */
-        .bolt-text {
-            font-size: 14px; /* Increased size to be more visible */
-            font-weight: bold;
-            color: rgba(255, 255, 255, 1); /* Fully white and bright */
-            /* Removed text-shadow for no outline */
-            white-space: nowrap; /* Keep "-" on one line */
-            transform-origin: center center; /* Ensure rotation is centered */
-        }
     </style>
     <!-- Updated Kakao Maps JavaScript API Key -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=00a03dac8488d12731e4021756938e72&libraries=services&autoload=false"></script>
@@ -265,8 +255,8 @@
             // Marker animation and sizing thresholds
             const gentleAnimationDistance = 1500;
             const veryFastAnimationDistance = 700;
-            // The arrival distance is now 100 meters (fly distance)
-            const arrivalDistance = 100;
+            // The arrival distance is now 350 meters (fly distance)
+            const arrivalDistance = 350; // Changed from 200 to 350
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -299,15 +289,6 @@
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
             const energeticDestinationImageSrc = 'f.gif';
-
-            // Bolt animation variables
-            let animatedBoltOverlays = []; // Array to hold CustomOverlay instances for each dash
-            let boltAnimationId = null;
-            const BOLT_CHARACTER = '-'; // Changed to single hyphen
-            const MAX_BOLTS = 3;
-            const BOLT_SPEED_PER_FRAME = 0.005; // Speed for each dash
-            const BOLT_SPAWN_DELAYS = [0, 2000, 3000]; // Specific delays for each bolt
-            let currentPathForBoltAnimation = [];
 
             // =================================================================================================================
             // UI & Animation Functions
@@ -505,114 +486,6 @@
                     }
                 }
             }
-
-            // =================================================================================================================
-            // Bolt Animation Functions
-            // =================================================================================================================
-
-            /**
-             * Starts the bolt animation along the current path.
-             */
-            function startBoltAnimation() {
-                stopBoltAnimation(); // Clear any existing bolts
-
-                // Create and schedule each bolt
-                for (let i = 0; i < MAX_BOLTS; i++) {
-                    setTimeout(() => {
-                        if (!map || currentPathForBoltAnimation.length < 2) return; // Ensure map and path are ready
-
-                        const boltContentDiv = document.createElement('div');
-                        boltContentDiv.className = 'bolt-text';
-                        boltContentDiv.innerText = BOLT_CHARACTER;
-                        
-                        const newBoltOverlay = new kakao.maps.CustomOverlay({
-                            position: new kakao.maps.LatLng(0, 0), // Initial position, will be updated
-                            content: boltContentDiv,
-                            yAnchor: 0.5, // Center vertically
-                            xAnchor: 0.5, // Center horizontally
-                            zIndex: 5 // Ensure it's above the main polyline
-                        });
-                        newBoltOverlay.setMap(map);
-
-                        animatedBoltOverlays.push({
-                            overlay: newBoltOverlay,
-                            progress: 0 // Each bolt starts its own progress from 0
-                        });
-
-                        // If this is the first bolt, start the animation loop
-                        if (animatedBoltOverlays.length === 1) {
-                            boltAnimationId = requestAnimationFrame(animateBoltFrame);
-                        }
-                    }, BOLT_SPAWN_DELAYS[i]); // Use specific delays
-                }
-            }
-
-            /**
-             * Animates a segment of the polyline to create a "bolt" effect.
-             */
-            function animateBoltFrame() {
-                if (currentPathForBoltAnimation.length < 2 || animatedBoltOverlays.length === 0) {
-                    boltAnimationId = requestAnimationFrame(animateBoltFrame);
-                    return;
-                }
-
-                const pathLength = currentPathForBoltAnimation.length;
-
-                animatedBoltOverlays.forEach(bolt => {
-                    bolt.progress += BOLT_SPEED_PER_FRAME;
-
-                    // If bolt reaches the end, reset its progress to reappear at the start
-                    if (bolt.progress > 1) {
-                        bolt.progress = 0;
-                    }
-
-                    const targetIndex = Math.floor(pathLength * bolt.progress);
-                    
-                    // Ensure targetIndex is within bounds
-                    const boltPosition = currentPathForBoltAnimation[Math.min(targetIndex, pathLength - 1)];
-
-                    if (boltPosition) {
-                        bolt.overlay.setPosition(boltPosition);
-
-                        // Calculate rotation based on the segment direction
-                        let rotation = 0;
-                        if (targetIndex < pathLength - 1) {
-                            const nextPoint = currentPathForBoltAnimation[targetIndex + 1];
-                            const dx = nextPoint.getLng() - boltPosition.getLng();
-                            const dy = nextPoint.getLat() - boltPosition.getLat();
-                            rotation = Math.atan2(dy, dx) * 180 / Math.PI; // Angle in degrees
-                        } else if (targetIndex > 0) { // If at the very end, use the previous segment
-                            const prevPoint = currentPathForBoltAnimation[targetIndex - 1];
-                            const dx = boltPosition.getLng() - prevPoint.getLng();
-                            const dy = boltPosition.getLat() - prevPoint.getLat();
-                            rotation = Math.atan2(dy, dx) * 180 / Math.PI;
-                        }
-                        
-                        const boltContentDiv = bolt.overlay.getContent();
-                        if (boltContentDiv) {
-                            boltContentDiv.style.transform = `rotate(${rotation}deg)`;
-                        }
-                    }
-                });
-
-                boltAnimationId = requestAnimationFrame(animateBoltFrame);
-            }
-
-            /**
-             * Stops the bolt animation and removes all bolt overlays.
-             */
-            function stopBoltAnimation() {
-                if (boltAnimationId) {
-                    cancelAnimationFrame(boltAnimationId);
-                    boltAnimationId = null;
-                }
-                animatedBoltOverlays.forEach(bolt => {
-                    bolt.overlay.setMap(null);
-                });
-                animatedBoltOverlays = []; // Clear the array
-                currentPathForBoltAnimation = [];
-            }
-
 
             // =================================================================================================================
             // Map and Routing Logic
@@ -956,8 +829,6 @@
                         
                         // Initial update with the full route
                         updateRouteOnMap(startLocation);
-                        startBoltAnimation(); // Start the bolt animation
-
                     } else {
                         if (timerContainer) {
                             timerContainer.innerHTML = "🤯 Routing data could not be found.";
@@ -1043,7 +914,6 @@
                         locationWatchId = null;
                     }
                     stopQuacking();
-                    stopBoltAnimation(); // Stop the bolt animation on arrival
                     startQuacking();
                     
                     // Lock the map view on the destination
@@ -1067,7 +937,6 @@
                 
                 // Shorten the polyline to represent the remaining path.
                 const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
-                currentPathForBoltAnimation = remainingPolyline; // Update the path for the bolt animation
 
                 if (currentPolyline) {
                     currentPolyline.setPath(remainingPolyline);
