@@ -229,9 +229,9 @@
 
         /* New style for the bolt effect using text */
         .bolt-text {
-            font-size: 10px; /* Smaller to fit inside the line */
+            font-size: 14px; /* Increased size to be more visible */
             font-weight: bold;
-            color: rgba(255, 255, 255, 0.7); /* White and more seethrough */
+            color: rgba(255, 255, 255, 1); /* Fully white and bright */
             /* Removed text-shadow for no outline */
             white-space: nowrap; /* Keep "-" on one line */
             transform-origin: center center; /* Ensure rotation is centered */
@@ -829,7 +829,7 @@
                 } catch (error) {
                     console.error("Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🤯 address not found";
+                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
