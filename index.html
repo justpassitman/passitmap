@@ -634,7 +634,7 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. �';
+                            timerContainer.innerHTML = 'Address not found. 😢';
                         }
                     }
                 } catch (error) {
@@ -781,7 +781,8 @@
                 }
                 
                 try {
-                    const orsUrl = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
+                    // MODIFIED: The travel mode has been changed from 'driving-car' to 'cycling-mountain'
+                    const orsUrl = `https://api.openrouteservice.org/v2/directions/cycling-mountain?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
                     const response = await fetch(orsUrl);
 
                     if (!response.ok) {
@@ -854,4 +855,3 @@
     </script>
 </body>
 </html>
-�
