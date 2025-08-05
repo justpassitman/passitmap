@@ -255,8 +255,8 @@
             // Marker animation and sizing thresholds
             const gentleAnimationDistance = 1500;
             const veryFastAnimationDistance = 700;
-            // The arrival distance is now 100 meters (fly distance) - Reverted to original
-            const arrivalDistance = 100; 
+            // The arrival distance is now 100 meters (fly distance)
+            const arrivalDistance = 100;
             const maxMarkerSize = 30;
             const baseMarkerSize = 20;
             const destinationSizeMultiplier = 0.8;
@@ -647,7 +647,7 @@
             * @param {string} destination The destination address from URL.
             */
             async function processDestination(destination) {
-                const getUserLocation = () => new new Promise((resolve, reject) => {
+                const getUserLocation = () => new Promise((resolve, reject) => {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
                     } else {
@@ -660,29 +660,19 @@
                     startLocation = [position.coords.latitude, position.coords.longitude];
 
                     let foundDestination = null;
-                    try {
-                        foundDestination = await tryGeocodeWithKakao(destination);
-                    } catch (e) {
-                        console.error("Kakao Geocoding attempt failed:", e);
-                        // Continue to ORS even if Kakao fails
-                    }
+                    foundDestination = await tryGeocodeWithKakao(destination);
 
                     if (!foundDestination) {
-                        try {
-                            foundDestination = await tryGeocodeWithORS(destination);
-                            if (!foundDestination) {
-                                const addressParts = destination.split(' ');
-                                const simplifiedAddress = addressParts.slice(0, 1).join(' ');
-                                if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
-                                    foundDestination = await tryGeocodeWithORS(simplifiedAddress);
-                                }
-                            }
-                            if (!foundDestination) {
-                                foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
-                            }
-                        } catch (e) {
-                            console.error("ORS Geocoding attempt failed:", e);
-                            // Continue if possible, but if no destination found, it will go to the final else
+                        foundDestination = await tryGeocodeWithORS(destination);
+                        if (!foundDestination) {
+                             const addressParts = destination.split(' ');
+                             const simplifiedAddress = addressParts.slice(0, 1).join(' ');
+                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
+                             }
+                        }
+                        if (!foundDestination) {
+                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
                         }
                     }
 
@@ -697,24 +687,20 @@
                         
                         updateMapViewToFitMarkers();
 
-                        getFullRouteAndTravelTime(); // This function handles its own errors now
+                        // NEW: Make a single API call for the full route when the destination is found.
+                        getFullRouteAndTravelTime();
                         
+                        // Start the location tracking
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = '🤯 Destination address not found.';
+                            timerContainer.innerHTML = '🤯 address not found';
                         }
                     }
                 } catch (error) {
-                    console.error("Error during initial setup or geolocation:", error);
+                    console.error("Error:", error);
                     if (timerContainer) {
-                        if (error.message.includes("key")) {
-                            timerContainer.innerHTML = `🔑 API key error: ${error.message}`;
-                        } else if (error.message.includes("GPS")) {
-                            timerContainer.innerHTML = "😵 GPS not available or permission denied.";
-                        } else {
-                            timerContainer.innerHTML = "⚠️ An unknown error occurred during setup.";
-                        }
+                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
@@ -797,96 +783,60 @@
             */
             async function getFullRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
-                    console.error("Start or destination location not set for routing.");
-                    if (timerContainer) {
-                        timerContainer.innerHTML = "🗺️ Route needs start/end points.";
-                    }
                     return;
                 }
                 
-                const MAX_RETRIES = 3;
-                let retries = 0;
-                let delay = 1000; // 1 second
+                try {
+                    const orsCoords = [
+                        [startLocation[1], startLocation[0]],
+                        [destinationLocation[1], destinationLocation[0]]
+                    ];
+                    
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
+                    const payload = { coordinates: orsCoords };
 
-                while (retries < MAX_RETRIES) {
-                    try {
-                        const orsCoords = [
-                            [startLocation[1], startLocation[0]],
-                            [destinationLocation[1], destinationLocation[0]]
-                        ];
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': ORS_API_KEY
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        if (response.status === 403) {
+                             throw new Error("🔑 ORS API key invalid.");
+                        }
+                        throw new Error(`An error occurred.`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
                         
-                        const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
-                        const payload = { coordinates: orsCoords };
+                        fullRouteDuration = route.summary.duration; // Store the total duration from the API
+                        fullRouteDistance = route.summary.distance; // Store the total distance from the API
+                        
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        fullPolylinePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+                        routeIsFetched = true;
+                        
+                        // Initial update with the full route
+                        updateRouteOnMap(startLocation);
 
-                        const response = await fetch(directionsUrl, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': ORS_API_KEY
-                            },
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (response.ok) {
-                            const data = await response.json();
-
-                            if (data && data.routes && data.routes.length > 0) {
-                                const route = data.routes[0];
-                                const encodedGeometry = route.geometry;
-                                
-                                fullRouteDuration = route.summary.duration;
-                                fullRouteDistance = route.summary.distance;
-                                
-                                const routeCoordinates = decodePolyline(encodedGeometry);
-                                fullPolylinePath = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
-                                routeIsFetched = true;
-                                
-                                updateRouteOnMap(startLocation);
-                                return; // Success, exit function
-                            } else {
-                                console.warn("ORS API returned no routes for the given coordinates (empty routes array).");
-                                if (timerContainer) {
-                                    timerContainer.innerHTML = "🤯 No route found for these points."; // More specific
-                                }
-                                return; // Not a retryable error (API responded, but no route)
-                            }
-                        } else {
-                            // Handle HTTP errors
-                            if (response.status === 403) {
-                                console.error("ORS API failed: Invalid API key (403 Forbidden).");
-                                if (timerContainer) {
-                                    timerContainer.innerHTML = "🔑 ORS API key invalid.";
-                                }
-                                return; // Not retryable
-                            } else if (response.status === 404) {
-                                console.error("ORS API failed: Route not found (404 Not Found).");
-                                if (timerContainer) {
-                                    timerContainer.innerHTML = "🗺️ Route not found (404).";
-                                }
-                                return; // Not retryable (likely unroutable points)
-                            } else {
-                                // Other HTTP errors, might be transient
-                                console.warn(`ORS API failed with status: ${response.status}. Retrying... (${retries + 1}/${MAX_RETRIES})`);
-                                retries++;
-                                await new Promise(res => setTimeout(res, delay));
-                                delay *= 2; // Exponential backoff
-                            }
+                    } else {
+                        if (timerContainer) {
+                            timerContainer.innerHTML = "🤯 Routing data could not be found.";
                         }
-                    } catch (error) {
-                        // Catch network errors or other unexpected errors
-                        console.error("Network or unexpected error during routing fetch:", error);
-                        retries++;
-                        if (retries < MAX_RETRIES) {
-                            console.log(`Retrying... (${retries}/${MAX_RETRIES})`);
-                            await new Promise(res => setTimeout(res, delay));
-                            delay *= 2; // Exponential backoff
-                        } else {
-                            console.error("Failed to fetch route after multiple retries.");
-                            if (timerContainer) {
-                                timerContainer.innerHTML = "🗺️ Route calculation failed after multiple attempts.";
-                            }
-                            return; // Exhausted retries
-                        }
+                    }
+                } catch (error) {
+                    console.error("Routing Error:", error);
+                    if (timerContainer) {
+                        timerContainer.innerHTML = error.message.includes("key") ? error.message : "🗺️ No route found";
                     }
                 }
             }
@@ -941,28 +891,12 @@
                 // Calculate the straight-line ("fly") distance to the destination.
                 const flyDistance = calculateDistance(currentPos, destinationLocation);
 
-                // Find the closest point on the original polyline to the current user location.
-                let minDistance = Infinity;
-                let closestPointIndex = -1;
-
-                for (let i = 0; i < fullPolylinePath.length; i++) {
-                    const distance = calculateDistance(currentPos, [fullPolylinePath[i].getLat(), fullPolylinePath[i].getLng()]);
-                    if (distance < minDistance) {
-                        minDistance = distance;
-                        closestPointIndex = i;
-                    }
-                }
-                
-                // Shorten the polyline to represent the remaining path.
-                const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
-                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
-                
-                const duckImageElement = document.getElementById('duck-image');
-                const currentLevel = map.getLevel();
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
-
-                // 1. Handle actual arrival (flyDistance < 100m)
-                if (flyDistance < arrivalDistance) { // arrivalDistance is 100m
+                // State machine for arrival based on fly distance
+                if (flyDistance < arrivalDistance) {
+                    const duckImageElement = document.getElementById('duck-image');
+                    const currentLevel = map.getLevel();
+                    const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                    
                     updateDestinationMarkerState('arrived', duckScale);
                     if (duckImageElement) {
                         duckImageElement.classList.add('wiggle-duck');
@@ -978,9 +912,9 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
-                    stopQuacking(); // Stop any ongoing quacking before starting arrival quack
-                    startQuacking(); // Quack for arrival
-                    isQuackingActive = true; // Ensure it's marked active for arrival
+                    stopQuacking();
+                    startQuacking();
+                    isQuackingActive = true; // Set to true on arrival
                     
                     // Lock the map view on the destination
                     map.setCenter(destinationLatLng);
@@ -989,17 +923,20 @@
                     return flyDistance;
                 }
                 
-                // 2. Handle quacking based on flyDistance < 350m (if not arrived)
-                // This check is independent and only affects the quacking animation.
-                if (flyDistance < QUACK_ACTIVATION_DISTANCE && !isQuackingActive) {
-                    startQuacking();
-                    isQuackingActive = true;
-                } else if (flyDistance >= QUACK_ACTIVATION_DISTANCE && isQuackingActive) {
-                    stopQuacking();
-                    isQuackingActive = false;
-                }
+                // Find the closest point on the original polyline to the current user location.
+                let minDistance = Infinity;
+                let closestPointIndex = -1;
 
-                // 3. Update polyline on map
+                for (let i = 0; i < fullPolylinePath.length; i++) {
+                    const distance = calculateDistance(currentPos, [fullPolylinePath[i].getLat(), fullPolylinePath[i].getLng()]);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        closestPointIndex = i;
+                    }
+                }
+                
+                // Shorten the polyline to represent the remaining path.
+                const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
                 if (currentPolyline) {
                     currentPolyline.setPath(remainingPolyline);
                 } else {
@@ -1013,7 +950,23 @@
                     currentPolyline.setMap(map);
                 }
                 
-                // 4. Update destination marker state (d.gif/f.gif) based on remaining travel distance AND fly distance
+                // Calculate the remaining travel distance by summing the segments
+                const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
+                
+                const duckImageElement = document.getElementById('duck-image');
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                
+                // Handle quacking based on flyDistance < 350m
+                if (flyDistance < QUACK_ACTIVATION_DISTANCE && !isQuackingActive) {
+                    startQuacking();
+                    isQuackingActive = true;
+                } else if (flyDistance >= QUACK_ACTIVATION_DISTANCE && isQuackingActive) {
+                    stopQuacking();
+                    isQuackingActive = false;
+                }
+
+                // Update destination marker state (d.gif/f.gif) based on remaining travel distance AND fly distance
                 if (flyDistance < 350) { // f.gif when flyDistance is below 350m
                     updateDestinationMarkerState('very-fast', duckScale);
                     if (duckImageElement) {
@@ -1048,7 +1001,7 @@
                     }
                 }
 
-                // Call the marker size update function with the calculated distance
+                // NEW: Call the marker size update function with the calculated distance
                 updateAllMarkerSizes(currentLevel, remainingTravelDistance);
 
                 // Use the total API duration and the remaining points to calculate time.
