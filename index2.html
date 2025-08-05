@@ -255,7 +255,7 @@
             const gentleAnimationDistance = 1500;
             // The very fast animation (f.gif) is now used when the user is within 700m.
             const veryFastAnimationDistance = 700;
-            // NEW: The super fast animation is triggered at 350m.
+            // The super fast animation is triggered at 350m.
             const superFastAnimationDistance = 350;
             const arrivalDistance = 50;
             const maxMarkerSize = 30;
@@ -266,6 +266,9 @@
             const gentleMarkerMultiplier = 1.6;
             // The multiplier for the energetic animation (f.gif) is unchanged.
             const energeticMarkerMultiplier = 2;
+            
+            // NEW: The distance threshold to switch from showing both markers to centering on the destination
+            const centerOnDestinationThreshold = 150;
 
             // NEW: Configuration for speed smoothing
             const maxSpeedReadings = 5; // Use a rolling average of the last 5 speed readings
@@ -720,22 +723,17 @@
                                 }
                             }
                         }
-
-                        // MODIFIED START: The following block now handles multiple zoom levels based on distance.
-                        if (distanceToDestination < superFastAnimationDistance) {
+                        
+                        // NEW LOGIC: This block now handles map centering.
+                        if (distanceToDestination < centerOnDestinationThreshold) {
+                            // When within 150m, center the map on the destination for a close-up view.
                             const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
                             map.setCenter(destinationLatLng);
-                            // This level provides an edge-to-edge view of approximately 700 meters.
-                            map.setLevel(3);
-                        } else if (distanceToDestination < veryFastAnimationDistance) {
-                            const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
-                            map.setCenter(destinationLatLng);
-                            // This level provides an edge-to-edge view of approximately 2000 meters.
-                            map.setLevel(5);
+                            map.setLevel(3); // A zoom level that provides an edge-to-edge view of ~700 meters.
                         } else {
+                            // Otherwise, always show both the user and the destination.
                             updateMapViewToFitMarkers();
                         }
-                        // MODIFIED END
                         
                         lastKnownPosition = newPosition;
                         lastPositionTimestamp = currentTime;
