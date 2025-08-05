@@ -492,7 +492,7 @@
             */
             async function tryGeocodeWithKakao(query) {
                 if (!KAKAO_API_KEY) {
-                    throw new Error("Kakao REST API key is missing. Geocoding will not work.");
+                    throw new Error("🔑 Kakao API key missing.");
                 }
 
                 const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
@@ -507,7 +507,7 @@
                     if (!kakaoResponse.ok) {
                         console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
                         if (kakaoResponse.status === 401 || kakaoResponse.status === 403) {
-                            throw new Error("Invalid Kakao REST API key. Please check your key.");
+                            throw new Error("🔑 Kakao API key invalid.");
                         }
                         return null;
                     }
@@ -535,7 +535,7 @@
             */
             async function tryGeocodeWithORS(query) {
                 if (!ORS_API_KEY) {
-                    throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
+                    throw new Error("🔑 ORS API key missing.");
                 }
                 
                 try {
@@ -545,7 +545,7 @@
                     if (!geocodeResponse.ok) {
                         if (geocodeResponse.status === 403) {
                             console.error("ORS Geocoding failed: Invalid API key.");
-                            throw new Error("Invalid ORS API key.");
+                            throw new Error("🔑 ORS API key invalid.");
                         }
                         return null;
                     }
@@ -577,7 +577,7 @@
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
                     } else {
-                        reject(new Error("Geolocation not supported."));
+                        reject(new Error("😵‍💫 GPS not supported."));
                     }
                 });
 
@@ -618,13 +618,13 @@
                         startLocationPolling();
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = 'Address not found. 😢';
+                            timerContainer.innerHTML = '🤯 address not found';
                         }
                     }
                 } catch (error) {
                     console.error("Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "🤯 address not found";
                     }
                 }
             }
@@ -688,6 +688,9 @@
                         console.error("Real-time geolocation error:", error);
                         if (locationWatchId) {
                             navigator.geolocation.clearWatch(locationWatchId);
+                        }
+                        if (timerContainer) {
+                            timerContainer.innerHTML = "😵 GPS out";
                         }
                     },
                     { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
@@ -896,7 +899,7 @@
                 if (!ORS_API_KEY) {
                     console.error("OpenRouteService API key is missing.");
                     if (timerContainer) {
-                        timerContainer.innerHTML = "ERROR: OpenRouteService API key is missing. Please add your key.";
+                        timerContainer.innerHTML = "🔑 ORS API key missing.";
                     }
                     return;
                 }
@@ -923,7 +926,10 @@
                         const errorData = await response.json().catch(() => ({}));
                         const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
                         if (response.status === 403) {
-                             throw new Error("OpenRouteService API key is invalid.");
+                             throw new Error("🔑 ORS API key invalid.");
+                        }
+                        if (errorMessage.includes("distance is too large")) {
+                            throw new Error("😵‍💫 that's too far");
                         }
                         throw new Error(`An error occurred: ${errorMessage}.`);
                     }
@@ -961,14 +967,20 @@
 
                     } else {
                         if (timerContainer) {
-                            timerContainer.innerHTML = "Routing data could not be found.";
+                            timerContainer.innerHTML = "🤯 Routing data could not be found.";
                         }
                     }
 
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Routing error occurred.";
+                        if (error.message.includes("key")) {
+                            timerContainer.innerHTML = error.message;
+                        } else if (error.message.includes("too far")) {
+                            timerContainer.innerHTML = "😵‍💫 that's too far";
+                        } else {
+                            timerContainer.innerHTML = "🗺️ No route found";
+                        }
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
