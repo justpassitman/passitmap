@@ -275,7 +275,7 @@
             let startLocation = null;
             let lastKnownPosition = null; // To store the last position that triggered an update
             let startOverlay = null; 
-            let destinationOverlay = null;
+            let destinationOverlay = null; // Initialize destinationOverlay here
             let currentPolyline = null; // The polyline that represents the remaining path
             let fullPolylinePath = null; // The full, pre-fetched route
             let locationWatchId = null;
@@ -394,11 +394,6 @@
                 if (!isMapInitialized || !destinationLocation) {
                     return;
                 }
-
-                if (destinationOverlay) {
-                    destinationOverlay.setMap(null);
-                    destinationOverlay = null;
-                }
                 
                 let content = '';
                 let className = '';
@@ -437,7 +432,10 @@
                     `;
                 }
                 
-                if (content) {
+                // Update or create the destination overlay
+                if (destinationOverlay) {
+                    destinationOverlay.setContent(content); // Update content
+                } else {
                     destinationOverlay = new kakao.maps.CustomOverlay({
                         map: map,
                         position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
@@ -445,9 +443,9 @@
                         yAnchor: 1.0,
                         zIndex: 1
                     });
-                    // Cache the destination marker container after it's created
-                    destinationMarkerContainer = document.getElementById('destination-marker-container');
                 }
+                // Cache the destination marker container after it's created or updated
+                destinationMarkerContainer = document.getElementById('destination-marker-container');
             }
 
             /**
