@@ -420,26 +420,19 @@
             function setStartMarker() {
                 if (!isMapInitialized) return;
                 
-                let shouldFlip = false;
-                if (startLocation && destinationLocation) {
-                    if (startLocation[1] > destinationLocation[1]) {
-                        shouldFlip = true;
-                    }
-                }
+                // The duck's direction (flip) is now handled directly in updateRouteOnMap
+                // based on the current position relative to the destination.
+                // This function only sets the initial marker or updates its position.
                 
                 const currentLevel = map.getLevel();
                 const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
                 
                 if (startOverlay) {
                     startOverlay.setPosition(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                    const duckImageElement = document.getElementById('duck-image');
-                    if (duckImageElement) {
-                        duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
-                    }
                 } else {
                     const content = `
                         <div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
-                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
+                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%;">
                         </div>
                     `;
 
@@ -921,13 +914,21 @@
                 const currentLevel = map.getLevel();
                 const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
+                // MODIFIED: Handle duck direction (always apply based on current/destination)
+                let shouldFlip = false;
+                if (currentPos[1] > destinationLocation[1]) { // Compare current longitude with destination longitude
+                    shouldFlip = true;
+                }
+                if (duckImageElement) {
+                    duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
+                }
+
                 // State machine for arrival based on fly distance
                 if (flyDistance < arrivalDistance) {
                     updateDestinationMarkerState('arrived', duckScale);
                     if (duckImageElement) {
-                        duckImageElement.classList.remove('wiggle-duck');
-                        duckImageElement.classList.remove('final-bounce-duck'); // Ensure this is removed
-                        duckImageElement.classList.add('wiggle-duck'); // Keep the wiggle for final arrival
+                        duckImageElement.classList.remove('final-bounce-duck');
+                        duckImageElement.classList.add('wiggle-duck'); // Ensure wiggle is active for quack
                     }
                     if (timerContainer) {
                         timerContainer.style.display = 'none';
@@ -980,7 +981,7 @@
                 // Calculate the remaining travel distance by summing the segments
                 const remainingTravelDistance = calculateRemainingTravelDistance(remainingPolyline);
                 
-                // NEW: Logic for the final bouncing animation
+                // MODIFIED: Logic for the final bouncing animation and general duck animation
                 if (flyDistance < finalBounceDistance) {
                     if (duckImageElement) {
                         duckImageElement.classList.remove('wiggle-duck'); // Stop normal wiggle
