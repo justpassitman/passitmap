@@ -358,7 +358,7 @@
                 if (!isMapInitialized || !destinationLocation) {
                     return;
                 }
-                
+
                 if (destinationOverlay) {
                     destinationOverlay.setMap(null);
                     destinationOverlay = null;
@@ -398,280 +398,559 @@
 
                 if (state !== 'default') {
                     content = `
-                        <div id="destination-marker-container" class="${className}" style="width: ${destinationScale}px; height: ${destinationScale}px;">
-                            <img src="${imgSrc}" class="destination-image"/>
+                        <div id="destination-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
+                            <img id="destination-image" src="${imgSrc}" alt="Destination" class="destination-image ${className}">
                         </div>
                     `;
                 }
                 
-                destinationOverlay = new kakao.maps.CustomOverlay({
-                    position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
-                    content: content,
-                    yAnchor: 1 // Anchors the marker to the bottom center
-                });
-                
-                destinationOverlay.setMap(map);
-            }
-
-            /**
-            * Uses the Kakao Maps Geocoder to convert a street address into coordinates.
-            * @param {string} address - The street address to geocode.
-            */
-            async function processDestination(address) {
-                if (!isMapInitialized) {
-                    console.error('Map not initialized.');
-                    if (timerContainer) {
-                        timerContainer.innerHTML = 'Map not ready.';
-                    }
-                    return;
-                }
-                const geocoder = new kakao.maps.services.Geocoder();
-                try {
-                    const coords = await new Promise((resolve, reject) => {
-                        geocoder.addressSearch(address, (result, status) => {
-                            if (status === kakao.maps.services.Status.OK) {
-                                resolve(new kakao.maps.LatLng(result[0].y, result[0].x));
-                            } else {
-                                reject(new Error('Geocoding failed. Please check the destination address.'));
-                            }
-                        });
+                if (content) {
+                    destinationOverlay = new kakao.maps.CustomOverlay({
+                        map: map,
+                        position: new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]),
+                        content: content,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
+                        zIndex: 1
                     });
-                    destinationLocation = [coords.getLat(), coords.getLng()];
-                    setDestinationMarker();
-                    startGeolocation();
-                } catch (error) {
-                    console.error("Geocoding Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = error.message;
-                    }
                 }
             }
 
             /**
-            * Creates and displays the duck marker on the map.
+            * Sets or updates the duck marker on the map using a CustomOverlay.
             */
             function setStartMarker() {
-                if (!isMapInitialized || !startLocation) return;
+                if (!isMapInitialized) return;
                 
-                if (startOverlay) {
-                    startOverlay.setMap(null); // Clear the previous marker
-                }
-                
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (map.getLevel() / 2)), maxMarkerSize);
-                const content = `
-                    <div class="wiggle-duck" style="width: ${duckScale}px; height: ${duckScale}px;">
-                        <img id="duck-image" src="${duckImageSrc}" class="w-full h-full object-contain"/>
-                    </div>
-                `;
-                
-                startOverlay = new kakao.maps.CustomOverlay({
-                    position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
-                    content: content,
-                    yAnchor: 1 // Anchors the marker to the bottom center
-                });
-                
-                startOverlay.setMap(map);
-            }
-            
-            /**
-            * Creates and displays the destination marker on the map.
-            */
-            function setDestinationMarker() {
-                if (!isMapInitialized || !destinationLocation) return;
-                
-                // Get the initial duck size based on the current map level
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (map.getLevel() / 2)), maxMarkerSize);
-                
-                // Initially, use the default marker state
-                updateDestinationMarkerState('default', duckScale);
-            }
-
-            /**
-            * Starts watching the user's geolocation and updates the map.
-            */
-            function startGeolocation() {
-                // If a watch is already active, clear it first
-                if (locationWatchId) {
-                    navigator.geolocation.clearWatch(locationWatchId);
-                }
-
-                // Check for geolocation support
-                if (!navigator.geolocation) {
-                    if (timerContainer) {
-                        timerContainer.innerHTML = "Geolocation not supported.";
+                let shouldFlip = false;
+                if (startLocation && destinationLocation) {
+                    if (startLocation[1] > destinationLocation[1]) {
+                        shouldFlip = true;
                     }
+                }
+                
+                const currentLevel = map.getLevel();
+                const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                
+                // If the overlay already exists, just update its position and flip state.
+                if (startOverlay) {
+                    startOverlay.setPosition(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                    const duckImageElement = document.getElementById('duck-image');
+                    if (duckImageElement) {
+                        // Apply the horizontal flip using a CSS transform property
+                        duckImageElement.style.transform = shouldFlip ? 'scaleX(-1)' : 'scaleX(1)';
+                    }
+                } else {
+                    // Create the HTML content for the custom overlay.
+                    const content = `
+                        <div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
+                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
+                        </div>
+                    `;
+
+                    startOverlay = new kakao.maps.CustomOverlay({
+                        map: map,
+                        position: new kakao.maps.LatLng(startLocation[0], startLocation[1]),
+                        content: content,
+                        // The yAnchor is now 1.0, which places the bottom of the marker's content directly on the travel line.
+                        yAnchor: 1.0,
+                        zIndex: 2
+                    });
+                }
+            }
+
+            /**
+            * A new function to automatically adjust the map view to fit both the start and destination markers.
+            */
+            function updateMapViewToFitMarkers() {
+                if (!isMapInitialized || !startLocation || !destinationLocation) {
                     return;
                 }
                 
-                locationWatchId = navigator.geolocation.watchPosition(position => {
-                    const { latitude, longitude } = position.coords;
-                    const newPosition = [latitude, longitude];
-                    
-                    // Only update the map and markers if the position has actually changed.
-                    if (!lastKnownPosition || newPosition[0] !== lastKnownPosition[0] || newPosition[1] !== lastKnownPosition[1]) {
-                        lastKnownPosition = newPosition;
-                        updateMap(newPosition);
-                    }
-                }, error => {
-                    console.error("Geolocation Error:", error);
-                    if (timerContainer) {
-                        timerContainer.innerHTML = 'Location access denied.';
-                    }
-                    stopQuacking();
-                }, {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 5000
-                });
+                const bounds = new kakao.maps.LatLngBounds();
+                bounds.extend(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                bounds.extend(new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]));
+                
+                map.setBounds(bounds, 20);
             }
 
             /**
-            * Updates the map view, duck marker, and route.
-            * @param {Array<number>} newPosition - The new [latitude, longitude] of the duck.
+            * NEW FUNCTION: Centers the map on the current position.
             */
-            function updateMap(newPosition) {
-                startLocation = newPosition;
-                const newLatLng = new kakao.maps.LatLng(newPosition[0], newPosition[1]);
-                map.setCenter(newLatLng);
-                setStartMarker();
-                
-                // Trigger route update only if enough distance has been covered since the last call.
-                const distanceToLastApiCall = lastApiCallPosition ? calculateDistance(newPosition, lastApiCallPosition) : Infinity;
-                if (distanceToLastApiCall > minDistanceForApiCall) {
-                    updateRoute();
+            function centerMapOnCurrentPosition() {
+                if (!isMapInitialized || !startLocation) {
+                    return;
+                }
+                const currentPosition = new kakao.maps.LatLng(startLocation[0], startLocation[1]);
+                map.setCenter(currentPosition);
+            }
+
+            /**
+            * Tries to geocode an address using the Kakao REST API.
+            * @param {string} query The address string to geocode.
+            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+            */
+            async function tryGeocodeWithKakao(query) {
+                if (!KAKAO_API_KEY) {
+                    throw new Error("Kakao REST API key is missing. Geocoding will not work.");
+                }
+
+                const kakaoGeocodeUrl = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(query)}`;
+                try {
+                    const kakaoResponse = await fetch(kakaoGeocodeUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `KakaoAK ${KAKAO_API_KEY}`
+                        }
+                    });
+
+                    if (!kakaoResponse.ok) {
+                        console.error(`Kakao Geocoding failed with status: ${kakaoResponse.status}`);
+                        if (kakaoResponse.status === 401 || kakaoResponse.status === 403) {
+                            throw new Error("Invalid Kakao REST API key. Please check your key.");
+                        }
+                        return null;
+                    }
+
+                    const kakaoData = await kakaoResponse.json();
+                    if (kakaoData.documents && kakaoData.documents.length > 0) {
+                        const firstResult = kakaoData.documents[0];
+                        return {
+                            lat: parseFloat(firstResult.y),
+                            lng: parseFloat(firstResult.x),
+                            label: firstResult.address_name
+                        };
+                    }
+                } catch (error) {
+                    console.error("Kakao Geocoding failed:", error);
+                    throw error;
+                }
+                return null;
+            }
+
+            /**
+            * Tries to geocode an address using the OpenRouteService API.
+            * @param {string} query The address string to geocode.
+            * @returns {Promise<object|null>} A Promise that resolves with location data or null.
+            */
+            async function tryGeocodeWithORS(query) {
+                if (!ORS_API_KEY) {
+                    throw new Error("OpenRouteService API key is missing. Geocoding will not work.");
                 }
                 
-                // Check if the duck has arrived
-                const distanceToDestination = calculateDistance(newPosition, destinationLocation);
-                
-                // Get the current duck scale
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (map.getLevel() / 2)), maxMarkerSize);
-                
-                if (distanceToDestination < arrivalDistance) {
-                    handleArrival();
-                } else if (distanceToDestination < veryFastAnimationDistance) {
-                    // Update to the very-fast animation marker
-                    updateDestinationMarkerState('very-fast', duckScale);
-                    // Start quacking
-                    startQuacking();
-                } else if (distanceToDestination < gentleAnimationDistance) {
-                    // Update to the gentle animation marker
-                    updateDestinationMarkerState('gentle', duckScale);
-                    // Stop quacking if it's currently running
-                    stopQuacking();
-                } else {
-                    // Back to the default static marker
-                    updateDestinationMarkerState('default', duckScale);
-                    // Stop quacking if it's currently running
-                    stopQuacking();
+                try {
+                    const geocodeUrl = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(query)}`;
+                    const geocodeResponse = await fetch(geocodeUrl);
+
+                    if (!geocodeResponse.ok) {
+                        if (geocodeResponse.status === 403) {
+                            console.error("ORS Geocoding failed: Invalid API key.");
+                            throw new Error("Invalid ORS API key.");
+                        }
+                        return null;
+                    }
+
+                    const geocodeData = await geocodeResponse.json();
+
+                    if (geocodeData.features.length > 0) {
+                        const firstResult = geocodeData.features[0];
+                        const destPoint = firstResult.geometry.coordinates;
+                        return {
+                            lat: destPoint[1],
+                            lng: destPoint[0],
+                            label: firstResult.properties.label
+                        };
+                    }
+                } catch (error) {
+                    console.error("ORS Geocoding failed:", error);
+                    throw error;
+                }
+                return null;
+            }
+
+            /**
+            * Processes the destination from the URL, geocodes it, and sets up the map.
+            * @param {string} destination The destination address from URL.
+            */
+            async function processDestination(destination) {
+                const getUserLocation = () => new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+                    } else {
+                        reject(new Error("Geolocation not supported."));
+                    }
+                });
+
+                try {
+                    const position = await getUserLocation();
+                    startLocation = [position.coords.latitude, position.coords.longitude];
+
+                    let foundDestination = null;
+                    foundDestination = await tryGeocodeWithKakao(destination);
+
+                    if (!foundDestination) {
+                        foundDestination = await tryGeocodeWithORS(destination);
+                        if (!foundDestination) {
+                             const addressParts = destination.split(' ');
+                             const simplifiedAddress = addressParts.slice(0, 1).join(' ');
+                             if (simplifiedAddress.length > 0 && simplifiedAddress !== destination) {
+                                 foundDestination = await tryGeocodeWithORS(simplifiedAddress);
+                             }
+                        }
+                        if (!foundDestination) {
+                            foundDestination = await tryGeocodeWithORS(destination + ", Seoul");
+                        }
+                    }
+
+                    if (foundDestination) {
+                        destinationLocation = [foundDestination.lat, foundDestination.lng];
+
+                        setStartMarker();
+                        
+                        const currentLevel = map.getLevel();
+                        const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                        updateDestinationMarkerState('default', duckScale);
+                        
+                        updateMapViewToFitMarkers();
+
+                        lastApiCallPosition = startLocation;
+                        getRouteAndTravelTime();
+                        startLocationPolling();
+                    } else {
+                        if (timerContainer) {
+                            timerContainer.innerHTML = 'Address not found. 😢';
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error:", error);
+                    if (timerContainer) {
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Address not found or routing error occurred.";
+                    }
                 }
             }
 
             /**
-             * Handles the duck's arrival at the destination.
-             */
-            function handleArrival() {
+            * Starts real-time location tracking and updates the map accordingly.
+            */
+            function startLocationPolling() {
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
-                    locationWatchId = null;
                 }
-                // Update to the energetic animation on arrival
-                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (map.getLevel() / 2)), maxMarkerSize);
-                updateDestinationMarkerState('arrived', duckScale);
-                stopQuacking();
-                if (timerContainer) {
-                    timerContainer.innerHTML = '🥳 Arrived! 🥳';
-                }
+
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const newPosition = [position.coords.latitude, position.coords.longitude];
+
+                        if (!lastKnownPosition) {
+                            lastKnownPosition = newPosition;
+                        }
+
+                        // MODIFIED: distance to destination
+                        const distance = calculateDistance(newPosition, destinationLocation);
+                        
+                        // NEW: Determine API call threshold based on distance
+                        const apiCallThreshold = distance < 1000 ? 50 : minDistanceForApiCall;
+
+                        startLocation = newPosition;
+                        setStartMarker();
+
+                        // MODIFIED START: The following block has been changed to center on the destination with a close zoom.
+                        if (distance < veryFastAnimationDistance) {
+                            const destinationLatLng = new kakao.maps.LatLng(destinationLocation[0], destinationLocation[1]);
+                            map.setCenter(destinationLatLng);
+                            // Set a high zoom level to ensure a close view (level 1-2 is usually very close).
+                            // A level of 1 provides a horizontal span of approximately 200 meters.
+                            map.setLevel(1);
+                        } else {
+                            updateMapViewToFitMarkers();
+                        }
+                        // MODIFIED END
+
+                        if (lastApiCallPosition) {
+                            const distanceSinceLastCall = calculateDistance(lastApiCallPosition, newPosition);
+
+                            // MODIFIED: Use the new dynamic threshold
+                            if (distanceSinceLastCall > apiCallThreshold) {
+                                lastApiCallPosition = newPosition;
+                                getRouteAndTravelTime();
+                            }
+                        }
+                        
+                        lastKnownPosition = newPosition;
+                        
+                        // NEW: Update timer with the last known duration to prevent it from resetting
+                        if (lastKnownDuration !== null && timerContainer) {
+                             const remainingMinutes = Math.round(lastKnownDuration / 60);
+                             timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        }
+                    },
+                    (error) => {
+                        console.error("Real-time geolocation error:", error);
+                        if (locationWatchId) {
+                            navigator.geolocation.clearWatch(locationWatchId);
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
             }
-            
+
             /**
-             * Calculates the distance between two coordinate points in meters using the Haversine formula.
-             * @param {Array<number>} coord1 - [latitude, longitude] of the first point.
-             * @param {Array<number>} coord2 - [latitude, longitude] of the second point.
-             * @returns {number} The distance in meters.
-             */
+            * Calculates the distance between two geographical coordinates using the Haversine formula.
+            * @param {number[]} coord1 - [latitude, longitude] of the first point.
+            * @param {number[]} coord2 - [latitude, longitude] of the second point.
+            * @returns {number} The distance in meters.
+            */
             function calculateDistance(coord1, coord2) {
                 const toRad = (x) => x * Math.PI / 180;
-                const R = 6371e3; // Earth's radius in meters
+                const R = 6371e3;
                 const dLat = toRad(coord2[0] - coord1[0]);
-                const dLon = toRad(coord2[1] - coord1[1]);
-                const lat1 = toRad(coord1[0]);
-                const lat2 = toRad(coord2[0]);
-
+                const dLng = toRad(coord2[1] - coord1[1]);
                 const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                        Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+                            Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
+                            Math.sin(dLng / 2) * Math.sin(dLng / 2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
                 return R * c;
             }
 
             /**
-             * Starts the quacking animation.
-             */
-            function startQuacking() {
-                if (quackIntervalId) return;
+            * Decodes a Google Encoded Polyline string into an array of [latitude, longitude] coordinates.
+            * @param {string} encoded - The encoded polyline string.
+            * @returns {number[][]} The decoded array of coordinates.
+            */
+            function decodePolyline(encoded) {
+                let points = [];
+                let index = 0, len = encoded.length;
+                let lat = 0, lng = 0;
 
-                quackIntervalId = setInterval(() => {
-                    const quackText = document.createElement('span');
-                    quackText.classList.add('quack-text', quackDirection === 'left' ? 'quack-left' : 'quack-right');
-                    quackText.innerText = 'QUACK!';
-                    document.body.appendChild(quackText);
-                    
-                    // Remove the quack text element after the animation finishes
-                    quackText.addEventListener('animationend', () => {
-                        quackText.remove();
-                    });
+                while (index < len) {
+                    let b, shift = 0, result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lat += dlat;
 
-                    quackDirection = quackDirection === 'left' ? 'right' : 'left';
-                }, 500); // Quack every 0.5 seconds
+                    shift = 0;
+                    result = 0;
+                    do {
+                        b = encoded.charCodeAt(index++) - 63;
+                        result |= (b & 0x1f) << shift;
+                        shift += 5;
+                    } while (b >= 0x20);
+                    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+                    lng += dlng;
+
+                    points.push([lat / 1e5, lng / 1e5]);
+                }
+                return points;
             }
 
             /**
-             * Stops the quacking animation.
+             * Creates and animates a "quack!" text element with multiple colors.
+             */
+            function createQuack() {
+                const duckContainer = document.getElementById('duck-marker-container');
+                if (!duckContainer) return;
+
+                const quack = document.createElement('div');
+                // An array of colors to be used for the multicolored text
+                const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
+                const text = "quack !";
+                let colorIndex = 0;
+                let content = '';
+                // Create a span for each character with a distinct color
+                for (const char of text) {
+                    content += `<span style="color: ${colors[colorIndex % colors.length]}">${char}</span>`;
+                    colorIndex++;
+                }
+                quack.innerHTML = content;
+                quack.classList.add('quack-text');
+
+                // Alternate between left and right quacks, now in opposite directions.
+                if (quackDirection === 'left') {
+                    quack.classList.add('quack-right');
+                    quackDirection = 'right';
+                } else {
+                    quack.classList.add('quack-left');
+                    quackDirection = 'left';
+                }
+
+                duckContainer.appendChild(quack);
+
+                // Remove the quack element after 0.5 second (matching the animation duration)
+                setTimeout(() => {
+                    quack.remove();
+                }, 500);
+            }
+
+            /**
+             * Starts the quack animation interval.
+             */
+            function startQuacking() {
+                if (quackIntervalId) return; // Don't start if already running
+                quackIntervalId = setInterval(createQuack, 500);
+            }
+
+            /**
+             * Stops the quack animation interval and removes any existing quack elements.
              */
             function stopQuacking() {
                 if (quackIntervalId) {
                     clearInterval(quackIntervalId);
                     quackIntervalId = null;
+                    const duckContainer = document.getElementById('duck-marker-container');
+                    if (duckContainer) {
+                        const quacks = duckContainer.querySelectorAll('.quack-text');
+                        quacks.forEach(q => q.remove());
+                    }
                 }
             }
 
+
             /**
-             * Fetches and draws a route from the current location to the destination.
-             */
-            async function updateRoute() {
-                lastApiCallPosition = startLocation;
-                
+            * Fetches the route and travel time from the OpenRouteService API.
+            */
+            async function getRouteAndTravelTime() {
                 if (!startLocation || !destinationLocation) {
                     return;
                 }
-
-                const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${startLocation[1]},${startLocation[0]}&end=${destinationLocation[1]},${destinationLocation[0]}`;
                 
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`API Error: ${errorData.error?.message || response.statusText}`);
+                const distance = calculateDistance(startLocation, destinationLocation);
+                const duckImageElement = document.getElementById('duck-image');
+                const currentLevel = map.getLevel();
+                const duckScale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
+                
+                // State machine for destination marker based on distance
+                if (distance < arrivalDistance) {
+                    // State 1: Arrived at destination
+                    updateDestinationMarkerState('arrived', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.add('wiggle-duck');
                     }
-                    const data = await response.json();
-                    
+                    if (timerContainer) {
+                        timerContainer.style.display = 'none'; // Hide the box when the "🥳" message would have appeared
+                    }
                     if (routePolyline) {
-                        routePolyline.setMap(null); // Clear previous route
+                         routePolyline.setMap(null);
+                         routePolyline = null;
+                    }
+                    if (locationWatchId) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                    startQuacking();
+                    return;
+                } else if (distance < veryFastAnimationDistance) {
+                    // State 2: Very close to destination (energetic animation)
+                    updateDestinationMarkerState('very-fast', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
+                        // Keep displaying the last known duration while a new one is calculated
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
+                    }
+                    stopQuacking();
+                } else if (distance < gentleAnimationDistance) {
+                    // State 3: Close to destination (gentle animation)
+                    updateDestinationMarkerState('gentle', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
+                    }
+                    stopQuacking();
+                } else {
+                    // State 4: Far from destination (default marker)
+                    updateDestinationMarkerState('default', duckScale);
+                    if (duckImageElement) {
+                        duckImageElement.classList.remove('wiggle-duck');
+                    }
+                    if (timerContainer) {
+                        timerContainer.style.display = 'block'; // Ensure the box is visible
+                        if (lastKnownDuration !== null) {
+                            const remainingMinutes = Math.round(lastKnownDuration / 60);
+                            timerContainer.innerHTML = `<b>${remainingMinutes} min</b>`;
+                        } else {
+                            timerContainer.innerHTML = 'Calculating route...';
+                        }
+                    }
+                    stopQuacking();
+                }
+
+                if (!ORS_API_KEY) {
+                    console.error("OpenRouteService API key is missing.");
+                    if (timerContainer) {
+                        timerContainer.innerHTML = "ERROR: OpenRouteService API key is missing. Please add your key.";
+                    }
+                    return;
+                }
+
+                const orsCoords = [
+                    [startLocation[1], startLocation[0]],
+                    [destinationLocation[1], destinationLocation[0]]
+                ];
+
+                try {
+                    const directionsUrl = `https://api.openrouteservice.org/v2/directions/cycling-regular`;
+                    const payload = { coordinates: orsCoords };
+
+                    const response = await fetch(directionsUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': ORS_API_KEY
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        const errorMessage = errorData.error?.message || `API request failed with status: ${response.status}`;
+                        if (response.status === 403) {
+                             throw new Error("OpenRouteService API key is invalid.");
+                        }
+                        throw new Error(`An error occurred: ${errorMessage}.`);
                     }
 
-                    if (data.features && data.features.length > 0) {
-                        const route = data.features[0].geometry.coordinates;
-                        const durationInSeconds = data.features[0].properties.summary.duration;
+                    const data = await response.json();
 
-                        const path = route.map(point => new kakao.maps.LatLng(point[1], point[0]));
+                    if (data && data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const encodedGeometry = route.geometry;
+                        const durationInSeconds = route.summary.duration;
+                        lastKnownDuration = durationInSeconds; // NEW: Store the last known duration
+
+                        const routeCoordinates = decodePolyline(encodedGeometry);
+                        const path = routeCoordinates.map(coord => new kakao.maps.LatLng(coord[0], coord[1]));
+
+                        if (routePolyline) {
+                            routePolyline.setMap(null);
+                        }
+
                         routePolyline = new kakao.maps.Polyline({
                             path: path,
-                            strokeWeight: 5,
-                            strokeColor: '#3498db',
+                            strokeWeight: 4, // Updated stroke weight for a thinner line
+                            strokeColor: '#00B050',
                             strokeOpacity: 0.8,
                             strokeStyle: 'solid'
                         });
+
                         routePolyline.setMap(map);
 
                         const durationInMinutes = Math.round(durationInSeconds / 60);
@@ -689,8 +968,7 @@
                 } catch (error) {
                     console.error("Routing Error:", error);
                     if (timerContainer) {
-                        // The error message has been modified here.
-                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "not found 🤯";
+                        timerContainer.innerHTML = error.message.includes("API key") ? error.message : "Routing error occurred.";
                     }
                     if (locationWatchId) {
                         navigator.geolocation.clearWatch(locationWatchId);
