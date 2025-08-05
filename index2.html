@@ -283,10 +283,10 @@
             let isHighAccuracyMode = false;
             let routeIsFetched = false;
 
-            // Image assets - Using placeholders for demonstration
-            const duckImageSrc = 'https://placehold.co/36x36/87CEFA/000?text=🦆';
-            const gentleDestinationImageSrc = 'https://placehold.co/36x36/98FB98/000?text=🚶';
-            const energeticDestinationImageSrc = 'https://placehold.co/36x36/FFD700/000?text=🏃';
+            // Image assets - Using the local files as requested.
+            const duckImageSrc = 'duck.png';
+            const gentleDestinationImageSrc = 'd.png';
+            const energeticDestinationImageSrc = 'f.png';
 
             // =================================================================================================================
             // UI & Animation Functions
@@ -370,7 +370,7 @@
                 if (state !== 'default') {
                     content = `
                         <div id="destination-marker-container" style="width: ${destinationScale}px; height: ${destinationScale}px;">
-                            <img id="destination-image" src="${imgSrc}" alt="Destination" class="destination-image ${className}" onerror="this.onerror=null;this.src='https://placehold.co/${destinationScale}x${destinationScale}/E5E7EB/4B5563?text=Dest'">
+                            <img id="destination-image" src="${imgSrc}" alt="Destination" class="destination-image ${className}">
                         </div>
                     `;
                 }
@@ -411,7 +411,7 @@
                 } else {
                     const content = `
                         <div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px; transform-origin: center bottom;">
-                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}" onerror="this.onerror=null;this.src='https://placehold.co/${scale}x${scale}/334155/F8FAFC?text=🦆'">
+                            <img id="duck-image" src="${duckImageSrc}" alt="Current Position" class="wiggle-duck" style="width: 100%; height: 100%; ${shouldFlip ? 'transform: scaleX(-1);' : ''}">
                         </div>
                     `;
 
