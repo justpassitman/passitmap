@@ -270,6 +270,9 @@
             // NEW: The distance threshold to switch from showing both markers to centering on the destination
             const centerOnDestinationThreshold = 150;
 
+            // NEW: The distance threshold to trigger the high-accuracy GPS mode
+            const HIGH_ACCURACY_THRESHOLD_METERS = 500;
+
             // NEW: Configuration for speed smoothing
             const maxSpeedReadings = 5; // Use a rolling average of the last 5 speed readings
             const minTimeThreshold = 2; // Don't calculate speed if time elapsed is less than 2 seconds
@@ -292,6 +295,8 @@
             let lastPositionTimestamp = null;
             let lastKnownSpeed = 0; // meters per second
             let speedReadings = []; // Array to store recent speed readings for averaging
+            // NEW: State variable to track if we are in high-accuracy GPS mode
+            let isHighAccuracyMode = false;
 
             const duckImageSrc = 'duck.png';
             const gentleDestinationImageSrc = 'd.gif';
@@ -650,12 +655,23 @@
 
             /**
             * Starts real-time location tracking and updates the map accordingly.
+            * This function now manages two different `watchPosition` modes.
             */
             function startLocationPolling() {
+                // Clear any existing watch to prevent multiple listeners
                 if (locationWatchId) {
                     navigator.geolocation.clearWatch(locationWatchId);
+                    locationWatchId = null;
                 }
-
+            
+                // Define the `watchPosition` options based on the current mode
+                const watchOptions = {
+                    enableHighAccuracy: true,
+                    // Use a more aggressive timeout in high accuracy mode
+                    timeout: isHighAccuracyMode ? 2000 : 5000,
+                    maximumAge: 0
+                };
+            
                 locationWatchId = navigator.geolocation.watchPosition(
                     (position) => {
                         const newPosition = [position.coords.latitude, position.coords.longitude];
@@ -690,6 +706,21 @@
 
                         // Distance to destination
                         const distanceToDestination = calculateDistance(newPosition, destinationLocation);
+                        
+                        // State machine to switch between location polling modes
+                        if (distanceToDestination < HIGH_ACCURACY_THRESHOLD_METERS && !isHighAccuracyMode) {
+                            // Enter high-accuracy mode
+                            console.log("Entering high-accuracy mode.");
+                            isHighAccuracyMode = true;
+                            startLocationPolling(); // Restart the watch with the new options
+                            return;
+                        } else if (distanceToDestination >= HIGH_ACCURACY_THRESHOLD_METERS && isHighAccuracyMode) {
+                            // Exit high-accuracy mode
+                            console.log("Exiting high-accuracy mode.");
+                            isHighAccuracyMode = false;
+                            startLocationPolling(); // Restart the watch with the new options
+                            return;
+                        }
                         
                         // Hybrid Timer Logic: Switch from API to client-side calculation
                         if (distanceToDestination < hybridTimerThreshold && lastKnownSpeed > 0) {
@@ -747,7 +778,7 @@
                             timerContainer.innerHTML = "😵 GPS out";
                         }
                     },
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    watchOptions
                 );
             }
 
@@ -897,6 +928,7 @@
                         navigator.geolocation.clearWatch(locationWatchId);
                         locationWatchId = null;
                     }
+                    stopQuacking(); // Stop any quacking before arrival, as arrival state will handle it.
                     startQuacking();
                     return;
                 } else if (distance < veryFastAnimationDistance) {
