@@ -1,0 +1,164 @@
+body {
+    background-color: transparent;
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+.widget-container {
+    background-color: rgba(255, 255, 255, 0);
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 150px;
+    height: 188px;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.map-container {
+    flex-grow: 1;
+    padding: 0;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    position: relative;
+}
+
+#map {
+    height: 100%;
+    width: 100%;
+    opacity: 0.8;
+}
+
+#map .kakao-maps-sdk,
+#map .View_logo,
+#map .View_copyright,
+#map .View_copyright a {
+    display: none !important;
+}
+
+.timer-container {
+    position: absolute;
+    bottom: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(255, 255, 255, 0);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    z-index: 1001;
+    padding: 0.75rem;
+    text-align: center;
+    font-size: 100%;
+    font-weight: 700;
+    color: rgba(51, 51, 51, 0.8);
+}
+
+.error-message {
+    color: red;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+}
+
+@keyframes wiggle-duck {
+    0%, 100% {
+        transform: rotate(0deg) translateY(0);
+    }
+    25% {
+        transform: rotate(-3deg) translateY(-2px);
+    }
+    50% {
+        transform: rotate(3deg) translateY(0);
+    }
+    75% {
+        transform: rotate(-3deg) translateY(-2px);
+    }
+}
+
+.wiggle-duck {
+    animation: wiggle-duck 0.5s ease-in-out infinite;
+}
+
+@keyframes quack-left {
+    0% {
+        transform: translate(-50%, 0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(calc(-50% - 15px), -30px) scale(0.8);
+        opacity: 0;
+    }
+}
+
+@keyframes quack-right {
+    0% {
+        transform: translate(-50%, 0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(calc(-50% + 15px), -30px) scale(0.8);
+        opacity: 0;
+    }
+}
+
+.quack-text {
+    position: absolute;
+    font-size: 20px;
+    font-weight: 900;
+    white-space: nowrap;
+    animation-duration: 0.5s;
+    animation-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    animation-fill-mode: forwards;
+    z-index: 3;
+    pointer-events: none;
+    left: 50%;
+    transform: translateX(-50%);
+    text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+}
+
+.quack-left {
+    bottom: 50%;
+    animation-name: quack-left;
+}
+
+.quack-right {
+    bottom: 50%;
+    animation-name: quack-right;
+}
+
+@keyframes very-fast-balance {
+    0%, 100% {
+        transform: rotate(-7deg);
+    }
+    50% {
+        transform: rotate(7deg);
+    }
+}
+
+.destination-marker-very-fast {
+    animation: very-fast-balance 0.3s ease-in-out infinite;
+}
+
+@keyframes color-pulse {
+    0%, 100% {
+        fill: hsl(120, 100%, 25%);
+    }
+    50% {
+        fill: hsl(120, 100%, 50%);
+    }
+}
+
+.classic-marker-svg {
+    animation: color-pulse 2s ease-in-out infinite;
+}
+
+.destination-image {
+    width: 100%;
+    height: 100%;
+}
