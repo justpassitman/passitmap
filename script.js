@@ -253,12 +253,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         const destinationAddress = urlParams.get('destination');
 
+        // --- MODIFICATION: Check for destination and adjust behavior ---
         if (!destinationAddress) {
-            timerContainerElement.innerHTML = '⚠️ Please provide a destination, you know how ⚠️';
-            return;
+            timerContainerElement.innerHTML = '📍 Showing your current location.';
+            startOnlyLocationTracking();
+        } else {
+            processDestination(destinationAddress);
         }
-
-        processDestination(destinationAddress);
     }
 
     function updateMapViewToFitMarkers() {
@@ -403,6 +404,59 @@
         }
     }
 
+    // --- NEW FUNCTION: Tracks location without a destination ---
+    function startOnlyLocationTracking() {
+        if (locationWatchId) {
+            navigator.geolocation.clearWatch(locationWatchId);
+        }
+
+        const watchOptions = {
+            enableHighAccuracy: true,
+            timeout: 5000,
+            maximumAge: 0
+        };
+
+        locationWatchId = navigator.geolocation.watchPosition(
+            function(position) {
+                startLocation = [position.coords.latitude, position.coords.longitude];
+                setStartMarker();
+                map.setCenter(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
+                map.setLevel(3); // Set a good zoom level for local view
+                timerContainerElement.innerHTML = '📍 Your location is being tracked.';
+                
+                // Ensure no destination marker or polyline is on the map
+                if (destinationOverlay) {
+                    destinationOverlay.setMap(null);
+                }
+                if (currentPolyline) {
+                    currentPolyline.setMap(null);
+                }
+                if (duckImageElement) {
+                    duckImageElement.classList.remove('wiggle-duck');
+                }
+            },
+            function(error) {
+                console.error("Location tracking error:", error);
+                let errorMessage = "😵 GPS out";
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        errorMessage = "🚫 GPS access denied. Please enable location services.";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        errorMessage = "📡 GPS signal unavailable. Trying to reconnect...";
+                        break;
+                    case error.TIMEOUT:
+                        errorMessage = "⏰ GPS timeout. Check your signal.";
+                        break;
+                }
+                if (timerContainerElement) {
+                    timerContainerElement.innerHTML = errorMessage;
+                }
+            },
+            watchOptions
+        );
+    }
+
     function checkIdleState() {
         if (Date.now() - lastSignificantMovementTime > IDLE_DURATION_THRESHOLD_MS && !isIdleMode) {
             console.log("Entering idle GPS mode.");
@@ -484,8 +538,8 @@
         const dLng = toRad(coord2[1] - coord1[1]);
 
         const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
         return R * c;
@@ -629,12 +683,11 @@
             }
         }
 
-        // Check if the user is significantly off route
         if (minDistance > OFF_ROUTE_THRESHOLD_METERS && routeIsFetched) {
             console.warn("User is significantly off route. Recalculating cycling route...");
             routeIsFetched = false; // Force re-fetch
             getFullRouteAndTravelTime();
-            return remainingTravelDistance; // Return current distance until new route is fetched
+            return remainingTravelDistance;
         }
 
         const remainingPolyline = fullPolylinePath.slice(closestPointIndex);
