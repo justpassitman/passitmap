@@ -253,9 +253,8 @@
         const urlParams = new URLSearchParams(window.location.search);
         const destinationAddress = urlParams.get('destination');
 
-        // --- MODIFICATION: Check for destination and adjust behavior ---
         if (!destinationAddress) {
-            timerContainerElement.innerHTML = '📍 Showing your current location.';
+            timerContainerElement.style.display = 'none'; // Hide the timer container
             startOnlyLocationTracking();
         } else {
             processDestination(destinationAddress);
@@ -404,7 +403,6 @@
         }
     }
 
-    // --- NEW FUNCTION: Tracks location without a destination ---
     function startOnlyLocationTracking() {
         if (locationWatchId) {
             navigator.geolocation.clearWatch(locationWatchId);
@@ -421,10 +419,8 @@
                 startLocation = [position.coords.latitude, position.coords.longitude];
                 setStartMarker();
                 map.setCenter(new kakao.maps.LatLng(startLocation[0], startLocation[1]));
-                map.setLevel(3); // Set a good zoom level for local view
-                timerContainerElement.innerHTML = '📍 Your location is being tracked.';
+                map.setLevel(6); 
                 
-                // Ensure no destination marker or polyline is on the map
                 if (destinationOverlay) {
                     destinationOverlay.setMap(null);
                 }
@@ -437,21 +433,6 @@
             },
             function(error) {
                 console.error("Location tracking error:", error);
-                let errorMessage = "😵 GPS out";
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMessage = "🚫 GPS access denied. Please enable location services.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMessage = "📡 GPS signal unavailable. Trying to reconnect...";
-                        break;
-                    case error.TIMEOUT:
-                        errorMessage = "⏰ GPS timeout. Check your signal.";
-                        break;
-                }
-                if (timerContainerElement) {
-                    timerContainerElement.innerHTML = errorMessage;
-                }
             },
             watchOptions
         );
@@ -685,7 +666,7 @@
 
         if (minDistance > OFF_ROUTE_THRESHOLD_METERS && routeIsFetched) {
             console.warn("User is significantly off route. Recalculating cycling route...");
-            routeIsFetched = false; // Force re-fetch
+            routeIsFetched = false;
             getFullRouteAndTravelTime();
             return remainingTravelDistance;
         }
