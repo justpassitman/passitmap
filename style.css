@@ -3,6 +3,7 @@ body {
     margin: 0;
     padding: 0;
     overflow: hidden;
+    font-family: 'Inter', sans-serif;
 }
 
 .widget-container {
@@ -13,7 +14,8 @@ body {
     width: 150px;
     height: 188px;
     border-radius: 0.75rem;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 
+                0 2px 4px -2px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     overflow: hidden;
     display: flex;
@@ -31,7 +33,7 @@ body {
     opacity: 0.85;
 }
 
-/* Hide Kakao Map logos */
+/* Hide Kakao Map default logos and copyright */
 #map .kakao-maps-sdk,
 #map .View_logo,
 #map .View_copyright,
@@ -39,6 +41,7 @@ body {
     display: none !important;
 }
 
+/* Timer Container - Clean single line */
 .timer-container {
     position: absolute;
     bottom: 8px;
@@ -46,33 +49,34 @@ body {
     transform: translateX(-50%);
     background: transparent !important;
     z-index: 1001;
-    padding: 4px 10px;
+    padding: 5px 10px;
     text-align: center;
+    font-size: 15px;
     font-weight: 700;
-    color: rgba(0, 0, 0, 0.85);
-    text-shadow: 0 1px 2px rgba(255,255,255,0.8);
+    color: rgba(0, 0, 0, 0.9);
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
     pointer-events: none;
 }
 
-.error-message {
-    color: red;
-    text-align: center;
-    padding: 20px;
-    font-size: 14px;
-}
-
-/* Wiggle animation */
+/* Duck wiggle animation */
 @keyframes wiggle-duck {
-    0%, 100% { transform: rotate(0deg) translateY(0); }
-    25% { transform: rotate(-3deg) translateY(-1px); }
-    75% { transform: rotate(3deg) translateY(-1px); }
+    0%, 100% { 
+        transform: rotate(0deg) translateY(0); 
+    }
+    25% { 
+        transform: rotate(-4deg) translateY(-1px); 
+    }
+    75% { 
+        transform: rotate(4deg) translateY(-1px); 
+    }
 }
 
 .wiggle-duck {
     animation: wiggle-duck 0.6s ease-in-out infinite;
 }
 
-/* Quack animation */
+/* Quack text animation */
 .quack-text {
     position: absolute;
     font-size: 19px;
@@ -85,17 +89,40 @@ body {
     pointer-events: none;
     left: 50%;
     transform: translateX(-50%);
-    text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, 
-                 -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+    text-shadow: -1.5px -1.5px 0 #000, 
+                 1.5px -1.5px 0 #000, 
+                 -1.5px 1.5px 0 #000, 
+                 1.5px 1.5px 0 #000;
 }
 
-.quack-left  { bottom: 55%; animation-name: quack-left; }
-.quack-right { bottom: 55%; animation-name: quack-right; }
+.quack-left {
+    bottom: 55%;
+    animation-name: quack-left;
+}
+
+.quack-right {
+    bottom: 55%;
+    animation-name: quack-right;
+}
 
 @keyframes quack-left {
-    to { transform: translate(calc(-50% - 18px), -35px) scale(0.7); opacity: 0; }
+    to { 
+        transform: translate(calc(-50% - 18px), -35px) scale(0.7); 
+        opacity: 0; 
+    }
 }
 
 @keyframes quack-right {
-    to { transform: translate(calc(-50% + 18px), -35px) scale(0.7); opacity: 0; }
+    to { 
+        transform: translate(calc(-50% + 18px), -35px) scale(0.7); 
+        opacity: 0; 
+    }
+}
+
+/* Error message */
+.error-message {
+    color: red;
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
 }
