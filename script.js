@@ -19,8 +19,8 @@
     let isMapInitialized = false;
     let lastSignificantMovementTime = Date.now();
 
-    const baseMarkerSize = 17;           // Small duck icon
-    const maxMarkerSize = 26;
+    const baseMarkerSize = 18;
+    const maxMarkerSize = 28;
     const MIN_MOVEMENT_THRESHOLD_METERS = 5;
 
     const duckImageSrc = 'duck.png';
@@ -40,20 +40,7 @@
         };
     }
 
-    // ==================== TRAVELED DISTANCE DISPLAY ====================
-    function updateTraveledDistanceDisplay() {
-        const kmTraveled = (totalDistanceTraveled / 1000).toFixed(2);
-        
-        if (timerContainerElement) {
-            timerContainerElement.innerHTML = `
-                <span style="font-size: 0.95rem; font-weight: 700; color: rgba(0,0,0,0.85);">
-                    ${kmTraveled} km
-                </span>
-            `;
-        }
-    }
-
-    // ==================== UPDATE TRAVELED TRACE ====================
+    // Update traveled trace and distance
     function updateTraveledTrace(newPosition) {
         if (!map || !newPosition) return;
 
@@ -66,19 +53,33 @@
             traveledPolyline = new kakao.maps.Polyline({
                 map: map,
                 path: traveledPath,
-                strokeWeight: 3,
-                strokeColor: '#374151',
-                strokeOpacity: 0.65,
+                strokeWeight: 3.5,
+                strokeColor: '#4B5563',
+                strokeOpacity: 0.75,
                 strokeStyle: 'solid'
             });
         }
 
         if (lastTracePosition) {
-            totalDistanceTraveled += calculateDistance(lastTracePosition, newPosition);
+            const segment = calculateDistance(lastTracePosition, newPosition);
+            totalDistanceTraveled += segment;
         }
         lastTracePosition = newPosition;
 
         updateTraveledDistanceDisplay();
+    }
+
+    // Clean single-line distance display
+    function updateTraveledDistanceDisplay() {
+        const kmTraveled = (totalDistanceTraveled / 1000).toFixed(2);
+        
+        if (timerContainerElement) {
+            timerContainerElement.innerHTML = `
+                <span style="font-size: 15px; font-weight: 700; color: rgba(0,0,0,0.85);">
+                    ${kmTraveled} km
+                </span>
+            `;
+        }
     }
 
     function setStartMarker() {
@@ -87,7 +88,7 @@
         const currentLevel = map.getLevel();
         const scale = Math.min(Math.max(baseMarkerSize, baseMarkerSize * (currentLevel / 2)), maxMarkerSize);
 
-        const content = `<div id="duck-marker-container" style="width: ${scale}px; height: ${scale}px;">
+        const content = `<div id="duck-marker-container" style="position: relative; width: ${scale}px; height: ${scale}px;">
                             <img id="duck-image" src="${duckImageSrc}" alt="You" style="width: 100%; height: 100%;">
                          </div>`;
 
@@ -109,13 +110,12 @@
     function createQuack() {
         if (!duckMarkerContainer) return;
         const quack = document.createElement('div');
-        const colors = ['#FFD700', '#87CEFA', '#98FB98'];
-        const text = "quack!";
+        const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
         let content = '';
-        let i = 0;
-        for (const char of text) {
-            content += `<span style="color:${colors[i % colors.length]}">${char}</span>`;
-            i++;
+        let colorIndex = 0;
+        for (const char of "quack !") {
+            content += `<span style="color: ${colors[colorIndex % colors.length]}">${char}</span>`;
+            colorIndex++;
         }
         quack.innerHTML = content;
         quack.classList.add('quack-text');
@@ -123,38 +123,32 @@
         quackDirection = quackDirection === 'left' ? 'right' : 'left';
 
         duckMarkerContainer.appendChild(quack);
-        setTimeout(() => quack.remove(), 600);
+        setTimeout(() => quack.remove(), 500);
     }
 
     function startQuacking() {
         if (quackIntervalId) return;
-        quackIntervalId = setInterval(createQuack, 450);
+        quackIntervalId = setInterval(createQuack, 500);
     }
 
-    function calculateDistance(coord1, coord2) {
-        const toRad = x => x * Math.PI / 180;
-        const R = 6371e3;
-        const dLat = toRad(coord2[0] - coord1[0]);
-        const dLng = toRad(coord2[1] - coord1[1]);
-        const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toRad(coord1[0]))*Math.cos(toRad(coord2[0]))*Math.sin(dLng/2)*Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return R * c;
+    function stopQuacking() {
+        if (quackIntervalId) clearInterval(quackIntervalId);
+        quackIntervalId = null;
+        if (duckMarkerContainer) document.querySelectorAll('.quack-text').forEach(q => q.remove());
     }
 
     function init() {
         timerContainerElement = document.getElementById('timer-container');
-        
-        // Make timer transparent with no background
-        timerContainerElement.style.backgroundColor = 'transparent';
-        timerContainerElement.style.boxShadow = 'none';
+        timerContainerElement.style.display = 'block';
+        timerContainerElement.style.background = 'transparent';
         timerContainerElement.style.padding = '4px 10px';
-        timerContainerElement.style.fontSize = '0.95rem';
+        timerContainerElement.style.fontSize = '15px';
 
         const mapContainer = document.getElementById('map');
 
         const mapOption = {
             center: new kakao.maps.LatLng(37.5665, 126.9780),
-            level: 7,                    // City-level view
+            level: 7,                    // City level view
             draggable: false,
             scrollwheel: false,
             disableDoubleClick: true,
@@ -173,8 +167,8 @@
 
         const watchOptions = {
             enableHighAccuracy: true,
-            timeout: 6000,
-            maximumAge: 1000
+            timeout: 5000,
+            maximumAge: 0
         };
 
         locationWatchId = navigator.geolocation.watchPosition(
@@ -203,14 +197,28 @@
         );
     }
 
+    function calculateDistance(coord1, coord2) {
+        const toRad = x => x * Math.PI / 180;
+        const R = 6371e3;
+
+        const dLat = toRad(coord2[0] - coord1[0]);
+        const dLng = toRad(coord2[1] - coord1[1]);
+
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(toRad(coord1[0])) * Math.cos(toRad(coord2[0])) *
+                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        return R * c;
+    }
+
     // Initialize Kakao Map
     if (typeof kakao !== 'undefined' && kakao.maps) {
         kakao.maps.load(function() {
             try {
                 init();
             } catch (e) {
-                console.error(e);
-                document.getElementById('map').innerHTML = '<div class="error-message">Map failed to load</div>';
+                console.error("Map init error:", e);
             }
         });
     }
