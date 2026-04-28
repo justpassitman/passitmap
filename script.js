@@ -179,3 +179,39 @@
 
         locationWatchId = navigator.geolocation.watchPosition(
             function(position) {
+                const newPosition = [position.coords.latitude, position.coords.longitude];
+
+                if (!lastKnownPosition || calculateDistance(lastKnownPosition, newPosition) > MIN_MOVEMENT_THRESHOLD_METERS) {
+                    lastSignificantMovementTime = Date.now();
+                    lastKnownPosition = newPosition;
+                    startLocation = newPosition;
+
+                    updateTraveledTrace(newPosition);
+                    setStartMarker();
+
+                    map.setCenter(new kakao.maps.LatLng(newPosition[0], newPosition[1]));
+                    map.setLevel(6);
+                }
+            },
+            function(error) {
+                console.error("GPS Error:", error);
+                if (timerContainerElement) {
+                    timerContainerElement.innerHTML = "GPS unavailable";
+                }
+            },
+            watchOptions
+        );
+    }
+
+    // Initialize Kakao Map
+    if (typeof kakao !== 'undefined' && kakao.maps) {
+        kakao.maps.load(function() {
+            try {
+                init();
+            } catch (e) {
+                console.error(e);
+                document.getElementById('map').innerHTML = '<div class="error-message">Map failed to load</div>';
+            }
+        });
+    }
+})();
