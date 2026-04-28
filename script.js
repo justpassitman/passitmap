@@ -1,6 +1,5 @@
 (function() {
     const KAKAO_API_KEY = "00a03dac8488d12731e4021756938e72";
-    const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBjMGUyMGY3YmM4NzQwNWY5ZDUyYzE4Y2VkMjI1Mjc1IiwiaCI6Im11cm11cjY0In0=";
 
     // Trace variables
     let traveledPath = [];
@@ -14,8 +13,6 @@
     let lastKnownPosition = null;
     let startOverlay = null;
     let locationWatchId = null;
-    let quackIntervalId = null;
-    let quackDirection = 'left';
     let isMapInitialized = false;
     let lastSignificantMovementTime = Date.now();
 
@@ -29,18 +26,6 @@
     let duckImageElement = null;
     let duckMarkerContainer = null;
 
-    function throttle(func, limit) {
-        let inThrottle;
-        return function() {
-            if (!inThrottle) {
-                func.apply(this, arguments);
-                inThrottle = true;
-                setTimeout(() => inThrottle = false, limit);
-            }
-        };
-    }
-
-    // Update traveled trace and distance
     function updateTraveledTrace(newPosition) {
         if (!map || !newPosition) return;
 
@@ -53,9 +38,9 @@
             traveledPolyline = new kakao.maps.Polyline({
                 map: map,
                 path: traveledPath,
-                strokeWeight: 3.5,
-                strokeColor: '#4B5563',
-                strokeOpacity: 0.75,
+                strokeWeight: 2.5,           // Thinner line
+                strokeColor: '#39FF14',      // Lime green
+                strokeOpacity: 0.85,
                 strokeStyle: 'solid'
             });
         }
@@ -69,16 +54,12 @@
         updateTraveledDistanceDisplay();
     }
 
-    // Clean single-line distance display
+    // ONE SINGLE LINE distance display
     function updateTraveledDistanceDisplay() {
         const kmTraveled = (totalDistanceTraveled / 1000).toFixed(2);
         
         if (timerContainerElement) {
-            timerContainerElement.innerHTML = `
-                <span style="font-size: 15px; font-weight: 700; color: rgba(0,0,0,0.85);">
-                    ${kmTraveled} km
-                </span>
-            `;
+            timerContainerElement.textContent = `${kmTraveled} km`;
         }
     }
 
@@ -107,48 +88,21 @@
         }
     }
 
-    function createQuack() {
-        if (!duckMarkerContainer) return;
-        const quack = document.createElement('div');
-        const colors = ['#FFD700', '#FFB6C1', '#87CEFA', '#98FB98', '#FFA07A'];
-        let content = '';
-        let colorIndex = 0;
-        for (const char of "quack !") {
-            content += `<span style="color: ${colors[colorIndex % colors.length]}">${char}</span>`;
-            colorIndex++;
-        }
-        quack.innerHTML = content;
-        quack.classList.add('quack-text');
-        quack.classList.add(quackDirection === 'left' ? 'quack-right' : 'quack-left');
-        quackDirection = quackDirection === 'left' ? 'right' : 'left';
-
-        duckMarkerContainer.appendChild(quack);
-        setTimeout(() => quack.remove(), 500);
-    }
-
-    function startQuacking() {
-        if (quackIntervalId) return;
-        quackIntervalId = setInterval(createQuack, 500);
-    }
-
-    function stopQuacking() {
-        if (quackIntervalId) clearInterval(quackIntervalId);
-        quackIntervalId = null;
-        if (duckMarkerContainer) document.querySelectorAll('.quack-text').forEach(q => q.remove());
-    }
-
     function init() {
         timerContainerElement = document.getElementById('timer-container');
         timerContainerElement.style.display = 'block';
         timerContainerElement.style.background = 'transparent';
-        timerContainerElement.style.padding = '4px 10px';
+        timerContainerElement.style.padding = '4px 8px';
         timerContainerElement.style.fontSize = '15px';
+        timerContainerElement.style.fontWeight = '700';
+        timerContainerElement.style.color = 'rgba(0, 0, 0, 0.9)';
+        timerContainerElement.style.textShadow = '0 1px 3px rgba(255,255,255,0.9)';
 
         const mapContainer = document.getElementById('map');
 
         const mapOption = {
             center: new kakao.maps.LatLng(37.5665, 126.9780),
-            level: 7,                    // City level view
+            level: 7,
             draggable: false,
             scrollwheel: false,
             disableDoubleClick: true,
@@ -158,7 +112,6 @@
         map = new kakao.maps.Map(mapContainer, mapOption);
         isMapInitialized = true;
 
-        // Start live tracking
         startLocationTracking();
     }
 
@@ -190,7 +143,7 @@
             function(error) {
                 console.error("GPS Error:", error);
                 if (timerContainerElement) {
-                    timerContainerElement.innerHTML = "GPS unavailable";
+                    timerContainerElement.textContent = "GPS unavailable";
                 }
             },
             watchOptions
@@ -212,7 +165,7 @@
         return R * c;
     }
 
-    // Initialize Kakao Map
+    // Start the map
     if (typeof kakao !== 'undefined' && kakao.maps) {
         kakao.maps.load(function() {
             try {
